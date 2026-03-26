@@ -1,0 +1,88 @@
+---
+title: Session Tracking
+description: Group events by session to reconstruct user activity sequences.
+icon: clock-rotate-left
+---
+
+## Overview
+
+The `session_id` field lets you group related events into a session. This is useful for reconstructing exactly what a user did during a specific interaction -- debugging a bug report, investigating a support ticket, or reviewing suspicious activity.
+
+## How It Works
+
+Include a `session_id` when ingesting events. All events with the same `session_id` can be queried together to reconstruct the full session timeline.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://getimmutable.dev/api/v1/events \
+  -H "Authorization: Bearer imk_your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "actor_id": "user_2hG9kLm",
+    "action": "document.viewed",
+    "resource_id": "doc_8nXpQr3",
+    "session_id": "sess_4kN8pLm"
+  }'
+```
+
+```typescript JavaScript
+import { ImmutableClient, PendingEvent } from "@getimmutable/sdk";
+
+const client = new ImmutableClient({
+  apiKey: "imk_your_api_key_here",
+  baseUrl: "https://getimmutable.dev",
+});
+
+await new PendingEvent(client, { id: "user_2hG9kLm" })
+  .session("sess_4kN8pLm")
+  .track("document.viewed", "document");
+```
+
+```php Laravel
+use GetImmutable\AuditLog;
+
+AuditLog::session('sess_4kN8pLm')
+    ->track('document.viewed', 'document');
+```
+
+</CodeGroup>
+
+## Querying by Session
+
+Filter events by `session_id` to see the full sequence of actions:
+
+```bash
+curl "https://getimmutable.dev/api/v1/events?session_id=sess_4kN8pLm" \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+Events are returned in chronological order, giving you a step-by-step view of what happened during that session.
+
+## Auto-Session in Laravel
+
+The Laravel SDK can automatically attach the current session ID to every event:
+
+```php
+// config/getimmutable.php
+return [
+    'api_key' => env('GETIMMUTABLE_API_KEY'),
+    'base_url' => env('GETIMMUTABLE_BASE_URL', 'https://getimmutable.dev'),
+    'async' => env('GETIMMUTABLE_ASYNC', false),
+];
+```
+
+When auto-session is enabled, the SDK reads the session ID from Laravel's session store and includes it on every tracked event without explicit `.session()` calls.
+
+## Debugging Workflow
+
+See the [Debugging Sessions](/guides/debugging-sessions) guide for a step-by-step walkthrough of using session tracking to investigate a user-reported bug.
+
+## Session ID Format
+
+Session IDs are arbitrary strings. Use whatever format fits your application:
+
+- Framework session IDs (e.g. Laravel's `session()->getId()`)
+- Custom prefixed IDs (e.g. `sess_4kN8pLm`)
+- UUIDs
+- Any other unique identifier per user interaction

@@ -1,21 +1,22 @@
 ---
 title: Targets
 description: Attach multiple resources to a single event with targets.
+icon: bullseye
 ---
 
 ## Overview
 
-While every event has a primary `resource_id`, many actions involve multiple resources. The `targets` field lets you attach additional resources to an event, making it easy to track cross-resource actions.
+While every event has a primary resource (`resource.type`, `resource.id`, `resource.name`), many actions involve multiple resources. The `targets` field lets you attach additional resources to an event for cross-resource tracking.
 
-## Structure
+## Target Structure
 
-Each target has three fields:
+Each target object has the following fields:
 
 <ResponseField name="type" type="string" required>
   The type of resource. Example: `folder`, `team`, `permission`.
 </ResponseField>
 
-<ResponseField name="id" type="string" required>
+<ResponseField name="id" type="string">
   The resource identifier. Example: `folder_3mK9pLq`.
 </ResponseField>
 
@@ -23,9 +24,13 @@ Each target has three fields:
   Human-readable name. Example: `Engineering Team`.
 </ResponseField>
 
+<ResponseField name="metadata" type="object">
+  Optional metadata specific to this target.
+</ResponseField>
+
 ## Example
 
-A user moves a document into a folder and shares it with a team:
+A user shares a document with a team and moves it to a folder:
 
 ```json
 {
@@ -34,6 +39,7 @@ A user moves a document into a folder and shares it with a team:
   "action": "document.shared",
   "resource_id": "doc_8nXpQr3",
   "resource_name": "Q4 Financial Report",
+  "resource": "document",
   "targets": [
     { "type": "folder", "id": "folder_3mK9pLq", "name": "Shared Reports" },
     { "type": "team", "id": "team_5bR7cNx", "name": "Engineering" }
@@ -43,7 +49,7 @@ A user moves a document into a folder and shares it with a team:
 
 ## Filtering by Target
 
-Query events by target using the `target_type` and `target_id` parameters:
+Query events by target using the `target_type` and `target_id` query parameters:
 
 ```bash
 curl "https://getimmutable.dev/api/v1/events?target_type=folder&target_id=folder_3mK9pLq" \
@@ -54,13 +60,58 @@ This returns all events where the specified target appears in the `targets` arra
 
 ## Use Cases
 
-| Scenario                    | Primary Resource       | Targets                          |
-| --------------------------- | ---------------------- | -------------------------------- |
-| File moved to folder        | File                   | Source folder, destination folder |
-| User added to team          | User                   | Team, role                       |
-| Permission granted          | Permission             | User, resource                   |
-| Invoice payment applied     | Invoice                | Payment method, subscription     |
-| Merge request approved      | Merge request          | Repository, reviewer             |
+| Scenario | Primary Resource | Targets |
+| -------- | ---------------- | ------- |
+| File moved to folder | File | Source folder, destination folder |
+| User added to team | User | Team, role |
+| Permission granted | Permission | User, resource |
+| Invoice payment applied | Invoice | Payment method, subscription |
+| Merge request approved | Merge request | Repository, reviewer |
+| Bulk action on records | Batch operation | Individual records affected |
+
+## SDK Usage
+
+<CodeGroup>
+
+```typescript JavaScript
+import { ImmutableClient, PendingEvent } from "@getimmutable/sdk";
+
+const client = new ImmutableClient({
+  apiKey: "imk_your_api_key_here",
+  baseUrl: "https://getimmutable.dev",
+});
+
+// Single target
+const event = new PendingEvent(client, { id: "user_2hG9kLm", name: "Sarah Chen", type: "user" });
+await event
+  .target("folder", "folder_3mK9pLq", "Shared Reports")
+  .target("team", "team_5bR7cNx", "Engineering")
+  .track("document.shared", "document");
+
+// Multiple targets at once
+await new PendingEvent(client, { id: "user_2hG9kLm" })
+  .targets([
+    { type: "folder", id: "folder_3mK9pLq", name: "Shared Reports" },
+    { type: "team", id: "team_5bR7cNx", name: "Engineering" },
+  ])
+  .track("document.shared", "document");
+```
+
+```php Laravel
+use GetImmutable\AuditLog;
+
+AuditLog::target('folder', 'folder_3mK9pLq', 'Shared Reports')
+    ->target('team', 'team_5bR7cNx', 'Engineering')
+    ->track('document.shared', 'document');
+
+// Or with multiple targets
+AuditLog::targets([
+    ['type' => 'folder', 'id' => 'folder_3mK9pLq', 'name' => 'Shared Reports'],
+    ['type' => 'team', 'id' => 'team_5bR7cNx', 'name' => 'Engineering'],
+])->track('document.shared', 'document');
+```
+
+</CodeGroup>
 
 ## Hash Chain
 

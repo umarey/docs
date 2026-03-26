@@ -1,0 +1,98 @@
+---
+title: SIEM Integration
+description: Stream audit events to your SIEM using log streams.
+icon: chart-mixed
+---
+
+## Overview
+
+Immutable's [log streams](/platform/log-streams) can feed your Security Information and Event Management (SIEM) system with real-time audit events. This enables centralized monitoring, correlation with other data sources, and long-term retention in your existing infrastructure.
+
+## HTTPS Webhook to SIEM
+
+Most SIEM platforms accept data via HTTP endpoints. Configure an HTTPS webhook log stream pointed at your SIEM's ingestion URL.
+
+### Splunk
+
+Use Splunk's HTTP Event Collector (HEC):
+
+1. Enable HEC in Splunk and create a new token.
+2. In Immutable, create a log stream with:
+   - **URL:** `https://your-splunk.example.com:8088/services/collector/event`
+   - **Signing Secret:** Your webhook signing secret
+
+Your SIEM handler should verify the `X-Immutable-Signature` header and forward the payload to Splunk's HEC.
+
+### Datadog
+
+Use Datadog's Log Management HTTP API:
+
+1. Create a Datadog API key.
+2. Set up a proxy endpoint that receives Immutable webhooks and forwards them to `https://http-intake.logs.datadoghq.com/api/v2/logs`.
+
+### Elastic / ELK Stack
+
+Point your log stream at Elasticsearch's bulk API or Logstash's HTTP input plugin.
+
+## Webhook Payload Format
+
+Each event is delivered as a JSON payload:
+
+```json
+{
+  "event_type": "event.created",
+  "data": {
+    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "actor_id": "user_2hG9kLm",
+    "actor_name": "Sarah Chen",
+    "action": "document.created",
+    "resource_id": "doc_8nXpQr3",
+    "resource": "document",
+    "ip_country": "US",
+    "ip_city": "San Francisco"
+  },
+  "workspace_id": "ws_1a2b3c4d",
+  "timestamp": "2026-03-26T10:15:00.000000Z"
+}
+```
+
+Always [verify the webhook signature](/security/webhook-signatures) before processing.
+
+## S3 Destination for Cold Storage
+
+For long-term archival and batch analysis, configure an S3 log stream:
+
+1. Create an S3-compatible bucket (AWS S3, Cloudflare R2, MinIO).
+2. Generate access credentials with write permissions.
+3. In Immutable, create an S3 log stream with your bucket details.
+
+Events are written as JSON objects. Use tools like Athena, BigQuery, or your SIEM's S3 import feature to query the data.
+
+## Architecture Example
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ Your App    │────>│ Immutable   │────>│ SIEM        │
+│             │     │ API         │     │ (Splunk,    │
+│ track()     │     │             │     │  Datadog,   │
+│             │     │ Log Stream  │────>│  ELK)       │
+└─────────────┘     │ (webhook)   │     └─────────────┘
+                    │             │
+                    │ Log Stream  │────>┌─────────────┐
+                    │ (S3)        │     │ Cold Storage │
+                    └─────────────┘     │ (S3/R2)     │
+                                        └─────────────┘
+```
+
+## Plan Quotas
+
+| Plan | Log Stream Limit |
+| ---- | ---------------- |
+| Free | 1 |
+| Starter | 3 |
+| Pro | 10 |
+| Enterprise | Unlimited |
+
+<Tip>
+  You can configure multiple log streams to send events to both a real-time SIEM (via webhook) and cold storage (via S3) simultaneously.
+</Tip>

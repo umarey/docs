@@ -1,0 +1,112 @@
+---
+title: Migrating to Immutable
+description: Migrate from hand-rolled audit logs to Immutable.
+icon: arrow-right-to-bracket
+---
+
+## Overview
+
+If you have an existing audit log implementation (database tables, log files, or another service), you can migrate to Immutable incrementally without downtime.
+
+## Strategy
+
+<Steps>
+  <Step title="Map your schema">
+    Map your existing audit log fields to Immutable's event structure:
+
+    | Your Field | Immutable Field |
+    | ---------- | --------------- |
+    | `user_id` | `actor_id` |
+    | `user_email` | `actor_name` |
+    | `event_type` | `action` |
+    | `target_type` | `resource` (resource type) |
+    | `target_id` | `resource_id` |
+    | `details` | `metadata` |
+    | `organization_id` | `tenant_id` |
+    | `created_at` | `occurred_at` |
+  </Step>
+
+  <Step title="Dual-write in production">
+    Start writing to both your existing system and Immutable simultaneously. This lets you validate that Immutable captures everything correctly before cutting over.
+
+    ```typescript
+    // Dual-write: existing system + Immutable
+    async function trackAction(data: AuditEvent) {
+      // Write to existing system
+      await db.auditLog.create({ data });
+
+      // Write to Immutable
+      await client.track({
+        actor_id: data.user_id,
+        actor_name: data.user_email,
+        action: data.event_type,
+        resource_id: data.target_id,
+        resource: data.target_type,
+        metadata: data.details,
+        tenant_id: data.organization_id,
+        occurred_at: data.created_at,
+      });
+    }
+    ```
+  </Step>
+
+  <Step title="Backfill historical data">
+    Use the [batch endpoint](/api-reference/batch-events) to import historical events. Use `idempotency_key` to make the import safe to retry:
+
+    ```typescript
+    // Process in batches of 100
+    const historicalEvents = await db.auditLog.findMany({ take: 100, skip: offset });
+
+    await client.trackBatch(
+      historicalEvents.map((event) => ({
+        actor_id: event.user_id,
+        actor_name: event.user_email,
+        action: event.event_type,
+        resource_id: event.target_id,
+        resource: event.target_type,
+        metadata: event.details,
+        tenant_id: event.organization_id,
+        occurred_at: event.created_at.toISOString(),
+        idempotency_key: `migration_${event.id}`, // Safe to retry
+      }))
+    );
+    ```
+
+    <Note>
+      Use a unique `idempotency_key` per historical event (e.g. prefixed with `migration_`). This ensures safe replay -- if the import job crashes partway through, you can re-run it without creating duplicate events.
+    </Note>
+  </Step>
+
+  <Step title="Validate">
+    Compare event counts and spot-check specific events between your old system and Immutable:
+
+    ```bash
+    # Count events in Immutable for a date range
+    curl "https://getimmutable.dev/api/v1/events?from=2026-01-01T00:00:00Z&to=2026-03-31T23:59:59Z&limit=1" \
+      -H "Authorization: Bearer imk_your_api_key_here"
+    ```
+
+    Check the `pagination.total` field in the response to compare against your old system's count.
+  </Step>
+
+  <Step title="Cut over">
+    Once you are confident in the data, remove the dual-write to your old system and use Immutable exclusively.
+  </Step>
+</Steps>
+
+## Gradual Rollout
+
+If you prefer a more cautious approach, roll out by tenant:
+
+1. Start tracking events to Immutable for a single tenant.
+2. Verify the data is correct.
+3. Gradually add more tenants.
+4. Once all tenants are migrated, remove the old system.
+
+Use the `tenant_id` field to isolate events per customer, making it easy to query and verify each tenant's data independently.
+
+## Tips
+
+- Set `occurred_at` on backfilled events to preserve the original timestamp. Without it, all imported events will have the import time as their `occurred_at`.
+- The hash chain is built based on `created_at` (server time), so backfilled events will have a different chain order than their original chronological order. This is expected and correct.
+- Use [event schemas](/platform/event-schemas) in permissive mode during migration to discover all action strings your old system uses, then switch to strict mode once you have defined patterns for all of them.

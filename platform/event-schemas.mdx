@@ -1,0 +1,60 @@
+---
+title: Event Schemas
+description: Define allowed action patterns and enforce event structure.
+icon: list-check
+---
+
+## Overview
+
+Event schemas let you control which actions are accepted by your workspace. Define action patterns with optional wildcards and choose between strict or permissive enforcement.
+
+## Action Patterns
+
+Patterns use dot-separated segments with optional wildcard (`*`) at the end:
+
+| Pattern | Matches |
+| ------- | ------- |
+| `document.created` | Only `document.created` |
+| `document.*` | `document.created`, `document.updated`, `document.deleted`, etc. |
+| `user.role.*` | `user.role.assigned`, `user.role.removed`, etc. |
+| `*` | Any single-segment action |
+
+## Enforcement Modes
+
+<CardGroup cols={2}>
+  <Card title="Strict Mode" icon="lock">
+    Events with actions that do not match any defined pattern are **rejected** with a `422` error. Use this in production to prevent unexpected action strings from entering your audit log.
+  </Card>
+  <Card title="Permissive Mode" icon="lock-open">
+    All events are accepted regardless of whether they match a pattern. Non-matching actions are flagged but still recorded. Use this during development or migration.
+  </Card>
+</CardGroup>
+
+### Strict Mode Error Response
+
+```json
+{
+  "error": "validation_failed",
+  "message": "Action 'billing.refunded' does not match any configured schema pattern."
+}
+```
+
+## Configuration
+
+Configure schemas from **Settings > Schemas** in the dashboard. Each schema entry consists of:
+
+- **Pattern** -- The action pattern to match (e.g. `document.*`)
+- **Description** -- Optional description of what this pattern covers
+
+<Note>
+  Schema enforcement is optional. If no schemas are configured, all actions are accepted regardless of the enforcement mode setting.
+</Note>
+
+## Plan Quotas
+
+| Plan | Schema Limit |
+| ---- | ------------ |
+| Free | 5 |
+| Starter | 15 |
+| Pro | 50 |
+| Enterprise | Unlimited |

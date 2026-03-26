@@ -21,8 +21,8 @@ Retrieve the current status of an export.
   "status": "completed",
   "filters": {
     "actor_id": "user_2hG9kLm",
-    "since": "2026-03-01T00:00:00Z",
-    "until": "2026-03-31T23:59:59Z"
+    "from": "2026-03-01T00:00:00Z",
+    "to": "2026-03-31T23:59:59Z"
   },
   "event_count": 1247,
   "created_at": "2026-03-26T10:15:00Z",
@@ -32,16 +32,29 @@ Retrieve the current status of an export.
 
 ### Status Values
 
-| Status       | Description                          |
-| ------------ | ------------------------------------ |
-| `pending`    | Export is queued for processing.     |
-| `processing` | Export is being generated.           |
-| `completed`  | Export is ready for download.        |
-| `failed`     | Export generation failed.            |
+| Status | Description |
+| ------ | ----------- |
+| `pending` | Export is queued for processing. |
+| `processing` | Export is being generated. |
+| `completed` | Export is ready for download. |
+| `failed` | Export generation failed. |
 
-### Example
+### Examples
 
-```bash
+<CodeGroup>
+
+```bash cURL
 curl https://getimmutable.dev/api/v1/exports/exp_9c2f4a7b-1d3e-4f5a-8b6c-7d8e9f0a1b2c \
   -H "Authorization: Bearer imk_your_api_key_here"
 ```
+
+```typescript JavaScript
+const status = await client.getExport("exp_9c2f4a7b-1d3e-4f5a-8b6c-7d8e9f0a1b2c");
+console.log(status.status); // "completed"
+```
+
+```php Laravel
+$status = AuditLog::getExport('exp_9c2f4a7b-1d3e-4f5a-8b6c-7d8e9f0a1b2c');
+```
+
+</CodeGroup>

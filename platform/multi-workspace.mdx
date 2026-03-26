@@ -1,0 +1,58 @@
+---
+title: Multi-Workspace & Teams
+description: Workspace management, team roles, and multi-workspace organizations.
+icon: users
+---
+
+## Workspaces
+
+A workspace is the top-level container for your audit log data. Each workspace has its own:
+
+- Event store and hash chain
+- API keys
+- Alert rules, schemas, and log streams
+- Billing plan and usage quotas
+- Team members and roles
+
+A workspace is automatically created when you register an account.
+
+## Team Roles
+
+Each workspace member has one of three roles:
+
+| Role | Permissions |
+| ---- | ----------- |
+| **Owner** | Full access. Manage billing, delete workspace, transfer ownership. One owner per workspace. |
+| **Admin** | Manage API keys, schemas, alert rules, log streams, exports. Invite/remove members. Cannot change billing or delete workspace. |
+| **Viewer** | Read-only access to events, exports, and alerts in the dashboard. Cannot modify settings or use the API. |
+
+## Team Invitations
+
+Invite team members from **Settings > Team** in the dashboard. Invitations are sent by email and expire after 7 days. The invitee must create an account (or sign in) to accept.
+
+All plans include **unlimited team members**.
+
+## Multiple Workspaces
+
+The number of workspaces you can own depends on your plan:
+
+| Plan | Owned Workspaces |
+| ---- | ---------------- |
+| Free | 1 |
+| Starter | 3 |
+| Pro | 10 |
+| Enterprise | Unlimited |
+
+Each workspace has its own billing plan. You can be a member of workspaces you don't own without affecting your owned workspace quota.
+
+## Per-Workspace Billing
+
+Billing is scoped to each workspace independently:
+
+- Usage (events, exports, etc.) is tracked per workspace
+- Plan upgrades/downgrades apply to individual workspaces
+- Each workspace can be on a different plan
+
+## Workspace Switching
+
+If you are a member of multiple workspaces, use the workspace switcher in the dashboard sidebar to navigate between them. API keys are scoped to individual workspaces, so use the correct key for each workspace.

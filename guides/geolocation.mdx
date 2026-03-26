@@ -1,0 +1,53 @@
+---
+title: Geolocation
+description: Automatic IP-based geographic enrichment on every event.
+icon: globe
+---
+
+## Overview
+
+Immutable automatically enriches every event with geographic data derived from the client IP address. This happens server-side during event processing -- no additional fields are required in your ingestion request.
+
+## Enriched Fields
+
+| Field | Description | Example |
+| ----- | ----------- | ------- |
+| `ip_country` | Two-letter ISO 3166-1 alpha-2 country code | `US`, `GB`, `DE` |
+| `ip_city` | City name | `San Francisco`, `London`, `Berlin` |
+
+These fields appear on every event returned by the API:
+
+```json
+{
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "action": "user.login",
+  "ip_country": "US",
+  "ip_city": "San Francisco"
+}
+```
+
+## Data Source
+
+Immutable uses **MaxMind GeoLite2** for IP geolocation. The database is updated regularly to maintain accuracy.
+
+## Private IP Addresses
+
+Requests from private/internal IP addresses (e.g. `127.0.0.1`, `10.x.x.x`, `192.168.x.x`) return `null` for both `ip_country` and `ip_city`. This is expected behavior for local development and internal services.
+
+## Use Cases
+
+### New Country Alerts
+
+The `new_country` [alert rule type](/platform/alert-rules) uses `ip_country` to detect when an actor logs in from a country they have never been seen in before. This is a common indicator of account compromise.
+
+### Compliance Reporting
+
+Filter events by `ip_country` to generate reports showing where your users are accessing your application from, which may be required for data residency compliance.
+
+### Suspicious Activity Detection
+
+Combine geolocation with [session tracking](/guides/session-tracking) to detect impossible travel -- events from the same actor in geographically distant locations within a short time window.
+
+## Hash Chain
+
+Both `ip_country` and `ip_city` (along with `ip_address` and `user_agent`) are included in the [hash chain](/guides/hash-chain) computation, ensuring that geographic data cannot be tampered with after ingestion.

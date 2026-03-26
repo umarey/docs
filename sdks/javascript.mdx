@@ -1,6 +1,7 @@
 ---
 title: JavaScript / TypeScript SDK
 description: Zero-dependency TypeScript SDK for the Immutable API.
+icon: js
 ---
 
 ## Installation
@@ -21,75 +22,142 @@ pnpm add @getimmutable/sdk
 
 </CodeGroup>
 
+**Requirements:** Node.js 18+ (uses native `fetch`)
+
 ## Setup
 
 ```typescript
-import { Immutable } from "@getimmutable/sdk";
+import { ImmutableClient } from "@getimmutable/sdk";
 
-const immutable = new Immutable({
+const client = new ImmutableClient({
   apiKey: "imk_your_api_key_here",
-  // Optional: override base URL (defaults to https://getimmutable.dev)
-  // baseUrl: "https://getimmutable.dev",
+  baseUrl: "https://getimmutable.dev",
+  // timeout: 30000, // optional, in milliseconds
 });
 ```
 
-## Sending Events
+| Option | Type | Required | Description |
+| ------ | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your `imk_` prefixed API key |
+| `baseUrl` | string | Yes | Base domain (SDK appends `/api/v1/...`) |
+| `timeout` | number | No | Request timeout in milliseconds |
 
-Use the fluent builder to construct and send events:
+## Tracking Events
+
+### Direct Tracking
 
 ```typescript
-const result = await immutable
-  .event()
-  .actor("user_2hG9kLm", { name: "Sarah Chen", type: "user" })
-  .action("document.created", { category: "documents" })
-  .resource("doc_8nXpQr3", { name: "Q4 Financial Report", type: "document" })
-  .metadata({ folder: "reports", template: "quarterly" })
-  .target("folder", "folder_3mK9pLq", { name: "Shared Reports" })
-  .target("team", "team_5bR7cNx", { name: "Engineering" })
-  .session("sess_4kN8pLm")
-  .tenant("org_7rT2xBc")
-  .idempotencyKey("unique_key_123")
-  .occurredAt(new Date("2026-03-15T14:32:18Z"))
-  .send();
+const result = await client.track({
+  actor_id: "user_2hG9kLm",
+  actor_name: "Sarah Chen",
+  actor_type: "user",
+  action: "document.created",
+  action_category: "documents",
+  resource_id: "doc_8nXpQr3",
+  resource_name: "Q4 Financial Report",
+  resource: "document",
+  metadata: { folder: "reports", template: "quarterly" },
+  targets: [
+    { type: "folder", id: "folder_3mK9pLq", name: "Shared Reports" },
+  ],
+  session_id: "sess_4kN8pLm",
+  tenant_id: "org_7rT2xBc",
+  idempotency_key: "unique_key_123",
+});
 
-console.log(result.id); // "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+console.log(result.id);     // "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
 console.log(result.status); // "queued"
 ```
+
+### Fluent Builder
+
+The `PendingEvent` class provides a chainable API:
+
+```typescript
+import { ImmutableClient, PendingEvent } from "@getimmutable/sdk";
+
+const client = new ImmutableClient({
+  apiKey: "imk_your_api_key_here",
+  baseUrl: "https://getimmutable.dev",
+});
+
+const event = new PendingEvent(client, {
+  id: "user_2hG9kLm",
+  name: "Sarah Chen",
+  type: "user",
+});
+
+const result = await event
+  .idempotencyKey("unique_key_123")
+  .version(1)
+  .session("sess_4kN8pLm")
+  .actionCategory("documents")
+  .target("folder", "folder_3mK9pLq", "Shared Reports")
+  .target("team", "team_5bR7cNx", "Engineering")
+  .track("document.created", "document", {
+    folder: "reports",
+    template: "quarterly",
+  });
+```
+
+#### PendingEvent Methods
+
+| Method | Parameters | Description |
+| ------ | ---------- | ----------- |
+| `idempotencyKey(key)` | string | Set deduplication key |
+| `version(v)` | number | Set event schema version |
+| `session(id)` | string | Set session identifier |
+| `actionCategory(cat)` | string | Set action category |
+| `target(type, id?, name?, metadata?)` | string, string?, string?, object? | Add a single target |
+| `targets(arr)` | array | Set all targets at once |
+| `track(action, resource?, metadata?)` | string, string?, object? | Send the event |
 
 ## Batch Ingestion
 
 Send up to 100 events in a single request:
 
 ```typescript
-const results = await immutable.sendBatch([
-  immutable
-    .event()
-    .actor("user_2hG9kLm", { name: "Sarah Chen" })
-    .action("document.created")
-    .resource("doc_8nXpQr3", { name: "Q4 Financial Report" }),
-  immutable
-    .event()
-    .actor("user_2hG9kLm", { name: "Sarah Chen" })
-    .action("document.shared")
-    .resource("doc_8nXpQr3", { name: "Q4 Financial Report" })
-    .target("team", "team_5bR7cNx", { name: "Engineering" }),
+const results = await client.trackBatch([
+  {
+    actor_id: "user_2hG9kLm",
+    actor_name: "Sarah Chen",
+    action: "document.created",
+    resource_id: "doc_8nXpQr3",
+    resource_name: "Q4 Financial Report",
+  },
+  {
+    actor_id: "user_2hG9kLm",
+    actor_name: "Sarah Chen",
+    action: "document.shared",
+    resource_id: "doc_8nXpQr3",
+    targets: [
+      { type: "team", id: "team_5bR7cNx", name: "Engineering" },
+    ],
+  },
 ]);
+
+// results.events = [{ id: "...", status: "queued" }, ...]
 ```
 
 ## Querying Events
 
 ```typescript
-const events = await immutable.events.list({
+const response = await client.getEvents({
   actor_id: "user_2hG9kLm",
   action: "document.*",
-  since: "2026-03-01T00:00:00Z",
-  per_page: 25,
+  from: "2026-03-01T00:00:00Z",
+  to: "2026-03-31T23:59:59Z",
+  limit: 25,
 });
 
+console.log(response.data);              // Event[]
+console.log(response.pagination.has_more); // boolean
+console.log(response.pagination.total);    // number
+
 // Cursor pagination
-if (events.has_more) {
-  const nextPage = await immutable.events.list({
-    cursor: events.next_cursor,
+if (response.pagination.has_more) {
+  const nextPage = await client.getEvents({
+    cursor: response.pagination.next_cursor,
   });
 }
 ```
@@ -97,32 +165,83 @@ if (events.has_more) {
 ## Retrieving a Single Event
 
 ```typescript
-const event = await immutable.events.get("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d");
+const event = await client.getEvent("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d");
 
-console.log(event.integrity.event_hash);
-console.log(event.integrity.previous_event_hash);
+console.log(event.actor.id);                     // "user_2hG9kLm"
+console.log(event.integrity.event_hash);          // "a3f2c8d1..."
+console.log(event.integrity.previous_event_hash); // "7b9e1d3f..."
+```
+
+## Verification
+
+```typescript
+const result = await client.verify();
+console.log(result.data.valid);          // true
+console.log(result.data.events_checked); // 4821
+
+// With date range
+const ranged = await client.verify(
+  "2026-03-01T00:00:00Z",
+  "2026-03-31T23:59:59Z"
+);
+```
+
+## Viewer Tokens
+
+```typescript
+const token = await client.createViewerToken({
+  tenantId: "org_7rT2xBc",
+  actorId: "user_2hG9kLm",
+  ttl: 7200, // 2 hours (min 60, max 86400, default 3600)
+});
+
+console.log(token.token);      // "eyJhbGciOiJIUzI1NiIs..."
+console.log(token.expires_at); // "2026-03-26T12:15:00Z"
+```
+
+## Alerts
+
+```typescript
+const alerts = await client.getAlerts({
+  rule_type: "new_country",
+  limit: 25,
+});
+```
+
+## Exports
+
+```typescript
+// Create export
+const exp = await client.createExport({
+  actor_id: "user_2hG9kLm",
+  from: "2026-03-01T00:00:00Z",
+});
+
+// Check status
+const status = await client.getExport(exp.id);
+console.log(status.status); // "pending" | "processing" | "completed" | "failed"
 ```
 
 ## Error Handling
 
-The SDK throws typed errors for API failures:
+The SDK throws `ImmutableError` for API failures:
 
 ```typescript
+import { ImmutableClient } from "@getimmutable/sdk";
+
 try {
-  await immutable.event().action("document.created").send();
+  await client.track({ action: "document.created" }); // missing actor_id
 } catch (error) {
-  if (error.status === 422) {
-    console.error("Validation failed:", error.message);
-  } else if (error.status === 429) {
-    console.error("Rate limited. Retry after:", error.retryAfter);
+  if (error instanceof Error) {
+    console.error(error.message); // "The actor_id field is required."
   }
 }
 ```
 
-## Features
+## TypeScript Support
 
-- **Zero dependencies** -- Uses native `fetch`, no external packages
-- **TypeScript strict** -- Full type definitions with strict mode
-- **Fluent builder** -- Chainable API for constructing events
-- **Tree-shakeable** -- Import only what you need
-- **Isomorphic** -- Works in Node.js, Bun, Deno, and edge runtimes
+The SDK is written in TypeScript with strict mode. All request payloads and response types are fully typed.
+
+```typescript
+import type { Event, TrackPayload, PaginatedResponse } from "@getimmutable/sdk";
+```

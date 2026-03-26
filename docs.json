@@ -18,27 +18,59 @@
             "pages": ["index", "quickstart", "authentication"]
           },
           {
-            "group": "Concepts",
+            "group": "Core Concepts",
             "pages": [
               "guides/events",
               "guides/hash-chain",
               "guides/targets",
-              "guides/schemas",
-              "guides/exports",
-              "guides/log-streams",
-              "guides/retention"
+              "guides/session-tracking",
+              "guides/geolocation"
+            ]
+          },
+          {
+            "group": "Platform Features",
+            "pages": [
+              "platform/event-schemas",
+              "platform/alert-rules",
+              "platform/log-streams",
+              "platform/exports",
+              "platform/retention",
+              "platform/multi-workspace"
+            ]
+          },
+          {
+            "group": "Security & Compliance",
+            "pages": [
+              "security/ip-allowlisting",
+              "security/soc2",
+              "security/hash-verification",
+              "security/webhook-signatures"
             ]
           },
           {
             "group": "SDKs",
             "pages": ["sdks/javascript", "sdks/laravel"]
+          },
+          {
+            "group": "Integration Guides",
+            "pages": [
+              "guides/nextjs",
+              "guides/debugging-sessions",
+              "guides/activity-intelligence",
+              "guides/embeddable-viewer",
+              "guides/siem-integration",
+              "guides/migrating"
+            ]
           }
         ]
       },
       {
         "tab": "API Reference",
         "groups": [
-          { "group": "Overview", "pages": ["api-reference/introduction"] },
+          {
+            "group": "Overview",
+            "pages": ["api-reference/introduction"]
+          },
           {
             "group": "Events",
             "pages": [
@@ -48,7 +80,10 @@
               "api-reference/get-event"
             ]
           },
-          { "group": "Verification", "pages": ["api-reference/verify-chain"] },
+          {
+            "group": "Verification",
+            "pages": ["api-reference/verify-chain"]
+          },
           {
             "group": "Exports",
             "pages": [

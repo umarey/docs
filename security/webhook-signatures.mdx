@@ -1,0 +1,145 @@
+---
+title: Webhook Signatures
+description: Verify the authenticity of webhook payloads from Immutable.
+icon: fingerprint
+---
+
+## Overview
+
+Immutable signs all outgoing webhook payloads (from [alert rules](/platform/alert-rules) and [log streams](/platform/log-streams)) with HMAC-SHA256. The signature is included in the `X-Immutable-Signature` header.
+
+## Signature Format
+
+```
+X-Immutable-Signature: sha256={hex_encoded_hmac}
+```
+
+The HMAC is computed using your webhook's signing secret as the key and the raw JSON request body as the message.
+
+## Verification
+
+<Warning>
+  Always use constant-time comparison when verifying signatures to prevent timing attacks. Never use `===` or `==` for signature comparison.
+</Warning>
+
+<CodeGroup>
+
+```typescript JavaScript (Node.js)
+import { createHmac, timingSafeEqual } from "crypto";
+
+function verifyImmutableSignature(
+  rawBody: string,
+  signatureHeader: string,
+  secret: string
+): boolean {
+  const computed = "sha256=" + createHmac("sha256", secret)
+    .update(rawBody)
+    .digest("hex");
+
+  // Constant-time comparison to prevent timing attacks
+  if (computed.length !== signatureHeader.length) {
+    return false;
+  }
+
+  return timingSafeEqual(
+    Buffer.from(computed),
+    Buffer.from(signatureHeader)
+  );
+}
+
+// Express.js example
+app.post("/webhook/immutable", (req, res) => {
+  const rawBody = req.body; // must be raw string, not parsed JSON
+  const signature = req.headers["x-immutable-signature"];
+
+  if (!verifyImmutableSignature(rawBody, signature, process.env.WEBHOOK_SECRET)) {
+    return res.status(401).json({ error: "Invalid signature" });
+  }
+
+  const payload = JSON.parse(rawBody);
+  // Process the verified payload
+  console.log(payload.event_type); // "alert.triggered" or "event.created"
+
+  res.status(200).send("OK");
+});
+```
+
+```php PHP
+function verifyImmutableSignature(
+    string $rawBody,
+    string $signatureHeader,
+    string $secret
+): bool {
+    $computed = 'sha256=' . hash_hmac('sha256', $rawBody, $secret);
+
+    // Constant-time comparison to prevent timing attacks
+    return hash_equals($computed, $signatureHeader);
+}
+
+// Laravel example
+Route::post('/webhook/immutable', function (Request $request) {
+    $rawBody = $request->getContent();
+    $signature = $request->header('X-Immutable-Signature');
+    $secret = config('services.immutable.webhook_secret');
+
+    if (!verifyImmutableSignature($rawBody, $signature, $secret)) {
+        abort(401, 'Invalid signature');
+    }
+
+    $payload = json_decode($rawBody, true);
+    // Process the verified payload
+    Log::info('Immutable webhook received', ['type' => $payload['event_type']]);
+
+    return response('OK', 200);
+});
+```
+
+</CodeGroup>
+
+## Payload Types
+
+### Alert Webhooks
+
+Sent when an [alert rule](/platform/alert-rules) triggers:
+
+```json
+{
+  "event_type": "alert.triggered",
+  "alert_id": "alt_4f7a8b9c-0d1e-2f3a-4b5c-6d7e8f9a0b1c",
+  "rule_name": "Suspicious Login",
+  "rule_type": "new_country",
+  "reason": "Actor user_2hG9kLm logged in from DE for the first time",
+  "event": {
+    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "action": "user.login",
+    "actor_id": "user_2hG9kLm",
+    "ip_country": "DE"
+  },
+  "workspace_id": "ws_1a2b3c4d",
+  "triggered_at": "2026-03-26T08:45:12.000000Z"
+}
+```
+
+### Log Stream Webhooks
+
+Sent when a new event is ingested (via [log streams](/platform/log-streams)):
+
+```json
+{
+  "event_type": "event.created",
+  "data": {
+    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "actor_id": "user_2hG9kLm",
+    "action": "document.created",
+    "resource_id": "doc_8nXpQr3"
+  },
+  "workspace_id": "ws_1a2b3c4d",
+  "timestamp": "2026-03-26T10:15:00.000000Z"
+}
+```
+
+## Important Notes
+
+- **Raw body required** -- You must verify against the raw request body string, not a serialized/parsed version. Re-serializing parsed JSON may change key ordering or whitespace, invalidating the signature.
+- **Signing secret** -- Set your signing secret when creating or editing a webhook destination in the dashboard. Store it securely as an environment variable.
+- **Failed verification** -- Return a non-2xx status code if verification fails. Do not process unverified payloads.

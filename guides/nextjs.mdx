@@ -1,0 +1,179 @@
+---
+title: Next.js Integration
+description: Server-side audit logging with Next.js App Router.
+icon: react
+---
+
+## Overview
+
+Audit log tracking must be done **server-side** because your API key should never be exposed to the browser. This guide covers patterns for Next.js App Router with Server Actions and middleware.
+
+<Warning>
+  Never use your `imk_` API key in client-side code, `use client` components, or any code that runs in the browser. API keys in client-side bundles are visible to anyone inspecting your page source.
+</Warning>
+
+## Setup
+
+Install the SDK:
+
+```bash
+npm install @getimmutable/sdk
+```
+
+Add your credentials to `.env.local`:
+
+```env
+GETIMMUTABLE_API_KEY=imk_your_api_key_here
+GETIMMUTABLE_BASE_URL=https://getimmutable.dev
+```
+
+Create a shared client instance:
+
+```typescript
+// lib/immutable.ts
+import { ImmutableClient } from "@getimmutable/sdk";
+
+export const immutable = new ImmutableClient({
+  apiKey: process.env.GETIMMUTABLE_API_KEY!,
+  baseUrl: process.env.GETIMMUTABLE_BASE_URL!,
+});
+```
+
+## Server Actions
+
+Track user actions in Server Actions:
+
+```typescript
+// app/documents/actions.ts
+"use server";
+
+import { immutable } from "@/lib/immutable";
+import { PendingEvent } from "@getimmutable/sdk";
+import { auth } from "@/lib/auth";
+
+export async function createDocument(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const title = formData.get("title") as string;
+
+  // Create the document in your database
+  const document = await db.document.create({ data: { title } });
+
+  // Track the action
+  await new PendingEvent(immutable, {
+    id: session.user.id,
+    name: session.user.name,
+    type: "user",
+  })
+    .session(session.sessionId)
+    .track("document.created", "document", {
+      resource_id: document.id,
+      resource_name: title,
+    });
+
+  return document;
+}
+```
+
+## API Route Handlers
+
+Track actions in API route handlers:
+
+```typescript
+// app/api/documents/[id]/route.ts
+import { immutable } from "@/lib/immutable";
+import { NextRequest, NextResponse } from "next/server";
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  await db.document.delete({ where: { id: params.id } });
+
+  await immutable.track({
+    actor_id: session.user.id,
+    actor_name: session.user.name,
+    action: "document.deleted",
+    resource_id: params.id,
+    resource: "document",
+    session_id: session.sessionId,
+  });
+
+  return NextResponse.json({ success: true });
+}
+```
+
+## Middleware for Session Tracking
+
+Use Next.js middleware to generate consistent session IDs:
+
+```typescript
+// middleware.ts
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { v4 as uuidv4 } from "uuid";
+
+export function middleware(request: NextRequest) {
+  const response = NextResponse.next();
+
+  // Generate session ID if not present
+  if (!request.cookies.get("audit_session_id")) {
+    const sessionId = `sess_${uuidv4()}`;
+    response.cookies.set("audit_session_id", sessionId, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24, // 24 hours
+    });
+  }
+
+  return response;
+}
+```
+
+Then read the session ID in your Server Actions:
+
+```typescript
+import { cookies } from "next/headers";
+
+const sessionId = (await cookies()).get("audit_session_id")?.value;
+```
+
+## Embeddable Viewer
+
+Generate a viewer token server-side and pass it to a client component:
+
+```typescript
+// app/audit-log/page.tsx
+import { immutable } from "@/lib/immutable";
+import { AuditLogViewer } from "./viewer";
+
+export default async function AuditLogPage() {
+  const { token, expires_at } = await immutable.createViewerToken({
+    tenantId: "org_7rT2xBc",
+    ttl: 3600,
+  });
+
+  return <AuditLogViewer token={token} />;
+}
+```
+
+```tsx
+// app/audit-log/viewer.tsx
+"use client";
+
+export function AuditLogViewer({ token }: { token: string }) {
+  return (
+    <iframe
+      src={`https://getimmutable.dev/viewer?token=${token}`}
+      className="w-full h-[600px] border-0 rounded-lg"
+    />
+  );
+}
+```

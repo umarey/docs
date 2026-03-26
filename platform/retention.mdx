@@ -1,0 +1,60 @@
+---
+title: Retention & Archival
+description: Per-plan retention policies with automatic archival to cold storage.
+icon: clock
+---
+
+## Retention Periods
+
+Each plan has a defined retention window. Events older than the retention period are archived and eventually removed from the primary database.
+
+| Plan | Retention |
+| ---- | --------- |
+| Free | 30 days |
+| Starter | 90 days |
+| Pro | 365 days |
+| Enterprise | Unlimited |
+
+<Note>
+  Enterprise plans have unlimited retention. Events are never archived or deleted.
+</Note>
+
+## Archival Process
+
+Immutable runs a daily archival job at **3:00 AM UTC**:
+
+<Steps>
+  <Step title="Serialize">
+    Events outside the retention window are serialized as **gzipped JSON Lines** (`.jsonl.gz`).
+  </Step>
+  <Step title="Upload">
+    Archives are uploaded to Cloudflare R2 cold storage.
+  </Step>
+  <Step title="Delete">
+    Only after a successful upload are events removed from the primary database.
+  </Step>
+</Steps>
+
+This **upload-before-delete** approach ensures no data is lost during archival.
+
+## Impact on Features
+
+### Querying
+
+Archived events are not returned by the [list events](/api-reference/list-events) or [get event](/api-reference/get-event) endpoints. Use the `from` and `to` query parameters to stay within your retention window.
+
+### Exports
+
+[CSV exports](/platform/exports) only include events within your retention window. The export dialog displays a warning if your selected date range extends beyond the retention boundary.
+
+### Hash Chain Verification
+
+The [hash chain](/guides/hash-chain) remains valid after archival. Archived events are excluded from verification, and the chain continues from the oldest non-archived event.
+
+## Upgrading Plans
+
+When you upgrade to a plan with a longer retention period, events that have not yet been archived become available again immediately. Events already archived and deleted from the primary database are not restored.
+
+<Warning>
+  If you downgrade your plan, the shorter retention period takes effect at the next archival run (3:00 AM UTC). Export any data you need before downgrading.
+</Warning>

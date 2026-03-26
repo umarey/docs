@@ -1,50 +1,77 @@
 ---
 title: Introduction
-description: Tamper-evident audit logs as a service for B2B SaaS companies.
+description: Tamper-evident audit logs as a service for SaaS companies.
+icon: shield-check
 ---
 
 # What is Immutable?
 
-Immutable is an API for B2B SaaS companies to record, query, and display user actions with built-in tamper evidence. Every event is cryptographically chained so you can prove your audit trail has never been altered.
+Immutable is an API for SaaS companies to record, query, and display user actions with built-in tamper evidence. Every event is cryptographically chained using SHA-256 so you can prove your audit trail has never been altered.
+
+## Who is Immutable for?
 
 <CardGroup cols={2}>
-  <Card title="Tamper-Evident" icon="shield-check">
-    Every event is SHA-256 hashed and chained to the previous event. Detect any modification or deletion instantly.
+  <Card title="B2B SaaS (Compliance)" icon="building-shield">
+    Meet SOC 2, HIPAA, and regulatory audit trail requirements. Immutable provides append-only storage, hash chain verification, configurable retention (up to unlimited), and exportable CSV reports for auditors.
   </Card>
-  <Card title="Real-Time API" icon="bolt">
-    Ingest events asynchronously and query them in real time with cursor-based pagination.
-  </Card>
-  <Card title="Multi-Tenant" icon="building">
-    Isolate audit logs per workspace with tenant-scoped API keys, hash chains, and retention policies.
-  </Card>
-  <Card title="Developer-First" icon="code">
-    First-class TypeScript and Laravel SDKs, comprehensive REST API, and embeddable viewer tokens.
+  <Card title="B2C & Internal Tools (Debugging)" icon="bug">
+    Reconstruct exact user sessions with session tracking and geolocation enrichment. Set up alert rules for anomalous behavior. Stream events to your SIEM for real-time monitoring.
   </Card>
 </CardGroup>
 
-## Key Features
+## Platform Features
 
-- **Append-only events** -- Events cannot be updated or deleted through the API.
-- **Hash chain verification** -- SHA-256 chain per workspace with a single-endpoint integrity check.
-- **Cursor pagination** -- Efficient, URL-safe base64 cursors with microsecond precision.
-- **Background processing** -- Event ingestion returns `202 Accepted` with a pre-generated UUID.
-- **Batch ingestion** -- Send up to 100 events in a single request.
-- **CSV exports** -- Generate filtered exports with signed download URLs.
-- **Log streaming** -- Fan out events to HTTPS webhooks and S3 destinations in real time.
-- **Schema enforcement** -- Define allowed action patterns with strict or permissive modes.
-- **Alert rules** -- Get notified via email or webhook when specific conditions are met.
-- **Embeddable viewer** -- Generate short-lived JWT tokens to embed an audit log viewer in your app.
+<CardGroup cols={3}>
+  <Card title="Tamper-Evident Chain" icon="link" href="/guides/hash-chain">
+    Every event is SHA-256 hashed and chained to the previous event. Detect any modification or deletion instantly.
+  </Card>
+  <Card title="Async Ingestion" icon="bolt" href="/api-reference/ingest-event">
+    Events return `202 Accepted` with a pre-generated UUID. Processing happens asynchronously via background queues.
+  </Card>
+  <Card title="Batch API" icon="layer-group" href="/api-reference/batch-events">
+    Send up to 100 events in a single request with automatic microsecond ordering for hash chain consistency.
+  </Card>
+  <Card title="Alert Rules" icon="bell" href="/platform/alert-rules">
+    Five built-in rule types: new country, high volume destructive, ingestion spike, repeated action, and off-hours activity.
+  </Card>
+  <Card title="Log Streams" icon="arrow-right-from-bracket" href="/platform/log-streams">
+    Fan out events to HTTPS webhooks and S3-compatible storage in real time with HMAC signature verification.
+  </Card>
+  <Card title="CSV Exports" icon="file-csv" href="/platform/exports">
+    Generate filtered exports processed in the background with signed download URLs that expire after 7 days.
+  </Card>
+  <Card title="Session Tracking" icon="clock-rotate-left" href="/guides/session-tracking">
+    Group events by session to reconstruct exactly what a user did and in what order.
+  </Card>
+  <Card title="Geo Enrichment" icon="globe" href="/guides/geolocation">
+    Automatic IP-based country and city enrichment on every event. Powers new-country alert detection.
+  </Card>
+  <Card title="Embeddable Viewer" icon="window-maximize" href="/guides/embeddable-viewer">
+    Generate scoped JWT tokens to embed a read-only audit log viewer directly in your application.
+  </Card>
+</CardGroup>
 
-## Quick Links
+## SDKs
+
+<CardGroup cols={2}>
+  <Card title="JavaScript / TypeScript" icon="js" href="/sdks/javascript">
+    Zero-dependency SDK using native `fetch`. Fluent builder pattern. Node 18+.
+  </Card>
+  <Card title="Laravel / PHP" icon="php" href="/sdks/laravel">
+    First-party Laravel package with Facade, auto-session tracking, and Eloquent observer support.
+  </Card>
+</CardGroup>
+
+## Get Started
 
 <CardGroup cols={3}>
   <Card title="Quickstart" icon="rocket" href="/quickstart">
     Send your first event in under 5 minutes.
   </Card>
   <Card title="API Reference" icon="square-terminal" href="/api-reference/introduction">
-    Explore every endpoint with examples.
+    Explore every endpoint with request/response examples.
   </Card>
-  <Card title="JavaScript SDK" icon="js" href="/sdks/javascript">
-    Install the zero-dependency TypeScript SDK.
+  <Card title="Authentication" icon="key" href="/authentication">
+    API key management, IP allowlisting, and security.
   </Card>
 </CardGroup>

@@ -1,0 +1,115 @@
+---
+title: Log Streams
+description: Stream audit events to external destinations in real time.
+icon: arrow-right-from-bracket
+---
+
+## Overview
+
+Log streams fan out your audit events to external destinations as they are ingested. Immutable supports two destination types: **HTTPS webhooks** and **S3-compatible storage**. Log streams are quota-gated, not plan-gated -- every plan can use them.
+
+## Destination Types
+
+<CardGroup cols={2}>
+  <Card title="HTTPS Webhook" icon="globe">
+    Events are POSTed to your endpoint as JSON with HMAC signature verification.
+  </Card>
+  <Card title="S3 Storage" icon="hard-drive">
+    Events are written to your S3-compatible bucket (AWS S3, Cloudflare R2, MinIO, etc.).
+  </Card>
+</CardGroup>
+
+## HTTPS Webhooks
+
+### Payload Format
+
+Each event is sent as a `POST` request with:
+
+- `Content-Type: application/json`
+- `X-Immutable-Signature: sha256={hmac_hash}`
+
+```json
+{
+  "event_type": "event.created",
+  "data": {
+    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "actor_id": "user_2hG9kLm",
+    "action": "document.created",
+    "resource_id": "doc_8nXpQr3"
+  },
+  "workspace_id": "ws_1a2b3c4d",
+  "timestamp": "2026-03-26T10:15:00.000000Z"
+}
+```
+
+### Verifying Signatures
+
+<CodeGroup>
+
+```typescript JavaScript (Node.js)
+import { createHmac, timingSafeEqual } from "crypto";
+
+function verifyWebhook(payload: string, signature: string, secret: string): boolean {
+  const expected = "sha256=" + createHmac("sha256", secret).update(payload).digest("hex");
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+}
+
+// In your webhook handler
+const payload = req.body; // raw string body
+const signature = req.headers["x-immutable-signature"];
+if (!verifyWebhook(payload, signature, process.env.WEBHOOK_SECRET)) {
+  return res.status(401).send("Invalid signature");
+}
+```
+
+```php PHP
+function verifyWebhook(string $payload, string $signature, string $secret): bool {
+    $expected = 'sha256=' . hash_hmac('sha256', $payload, $secret);
+    return hash_equals($expected, $signature);
+}
+
+// In your webhook handler
+$payload = file_get_contents('php://input');
+$signature = $_SERVER['HTTP_X_IMMUTABLE_SIGNATURE'] ?? '';
+if (!verifyWebhook($payload, $signature, env('WEBHOOK_SECRET'))) {
+    abort(401, 'Invalid signature');
+}
+```
+
+</CodeGroup>
+
+### Failure Handling
+
+If your endpoint returns a non-2xx status code, Immutable retries with exponential backoff. After **3 consecutive failures**, the stream is automatically moved to an `error` state and stops delivering events.
+
+Re-enable the stream from the dashboard after resolving the issue.
+
+## S3 Storage
+
+Configure a stream with your S3-compatible credentials:
+
+| Field | Description |
+| ----- | ----------- |
+| Bucket | Target bucket name |
+| Region | Bucket region (e.g. `us-east-1`) |
+| Access Key ID | Your storage access key |
+| Secret Access Key | Your storage secret key |
+| Endpoint | Custom endpoint for non-AWS providers (e.g. Cloudflare R2) |
+| Prefix | Optional path prefix for objects |
+
+<Note>
+  Immutable uses Laravel's `Storage::build()` to connect to your bucket at runtime with your credentials. Credentials are encrypted at rest.
+</Note>
+
+## Cached Fanout
+
+Log stream delivery uses cached configuration to minimize database lookups during high-throughput ingestion. Stream configuration is cached and refreshed periodically.
+
+## Plan Quotas
+
+| Plan | Stream Limit |
+| ---- | ------------ |
+| Free | 1 |
+| Starter | 3 |
+| Pro | 10 |
+| Enterprise | Unlimited |

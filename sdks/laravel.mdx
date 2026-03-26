@@ -1,6 +1,7 @@
 ---
 title: Laravel SDK
 description: First-party Laravel package for the Immutable API.
+icon: php
 ---
 
 ## Installation
@@ -9,107 +10,255 @@ description: First-party Laravel package for the Immutable API.
 composer require getimmutable/laravel
 ```
 
+**Requirements:** PHP 8.2+, Laravel 10+
+
 ## Configuration
 
-Publish the configuration file:
-
-```bash
-php artisan vendor:publish --tag=immutable-config
-```
-
-Add your API key to `.env`:
+Add your credentials to `.env`:
 
 ```env
-IMMUTABLE_API_KEY=imk_your_api_key_here
+GETIMMUTABLE_API_KEY=imk_your_api_key_here
+GETIMMUTABLE_BASE_URL=https://getimmutable.dev
+GETIMMUTABLE_ASYNC=false
 ```
 
-## Sending Events
+| Variable | Required | Description |
+| -------- | -------- | ----------- |
+| `GETIMMUTABLE_API_KEY` | Yes | Your `imk_` prefixed API key |
+| `GETIMMUTABLE_BASE_URL` | Yes | Base domain URL |
+| `GETIMMUTABLE_ASYNC` | No | Set `true` to dispatch tracking via Laravel queues |
 
-Use the `Immutable` facade with the fluent builder:
+### Service Provider
+
+The package auto-discovers `GetImmutable\GetImmutableServiceProvider`. No manual registration needed.
+
+### Facade
 
 ```php
-use Immutable\Facades\Immutable;
+use GetImmutable\AuditLog;
+```
 
-Immutable::event()
-    ->actor('user_2hG9kLm', name: 'Sarah Chen', type: 'user')
-    ->action('document.created', category: 'documents')
-    ->resource('doc_8nXpQr3', name: 'Q4 Financial Report', type: 'document')
-    ->metadata(['folder' => 'reports', 'template' => 'quarterly'])
-    ->target('folder', 'folder_3mK9pLq', name: 'Shared Reports')
+## Tracking Events
+
+### Basic Usage
+
+```php
+use GetImmutable\AuditLog;
+
+AuditLog::track('document.created', 'document', [
+    'actor_id' => 'user_2hG9kLm',
+    'actor_name' => 'Sarah Chen',
+    'actor_type' => 'user',
+    'resource_id' => 'doc_8nXpQr3',
+    'resource_name' => 'Q4 Financial Report',
+    'metadata' => ['folder' => 'reports', 'template' => 'quarterly'],
+]);
+```
+
+### Fluent Builder
+
+```php
+use GetImmutable\AuditLog;
+
+AuditLog::idempotencyKey('unique_key_123')
+    ->version(1)
     ->session('sess_4kN8pLm')
-    ->tenant('org_7rT2xBc')
-    ->send();
+    ->actionCategory('documents')
+    ->target('folder', 'folder_3mK9pLq', 'Shared Reports')
+    ->target('team', 'team_5bR7cNx', 'Engineering')
+    ->track('document.created', 'document', [
+        'folder' => 'reports',
+        'template' => 'quarterly',
+    ]);
 ```
 
-## Auto-Session Tracking
+#### PendingEvent Methods
 
-The Laravel SDK can automatically attach a `session_id` to every event based on the current authenticated session:
-
-```php
-// config/immutable.php
-return [
-    'api_key' => env('IMMUTABLE_API_KEY'),
-    'auto_session' => true,
-];
-```
-
-When `auto_session` is enabled, the SDK reads the session ID from Laravel's session store and includes it on every event.
+| Method | Parameters | Description |
+| ------ | ---------- | ----------- |
+| `idempotencyKey($key)` | string | Set deduplication key |
+| `version($v)` | int | Set event schema version |
+| `session($id)` | string | Set session identifier |
+| `actionCategory($cat)` | string | Set action category |
+| `target($type, $id?, $name?)` | string, string?, string? | Add a single target |
+| `targets($arr)` | array | Set all targets at once |
+| `track($action, $resource?, $metadata?)` | string, string?, array? | Send the event |
 
 ## Batch Ingestion
 
 ```php
-use Immutable\Facades\Immutable;
+use GetImmutable\AuditLog;
 
-Immutable::sendBatch([
-    Immutable::event()
-        ->actor('user_2hG9kLm', name: 'Sarah Chen')
-        ->action('document.created')
-        ->resource('doc_8nXpQr3', name: 'Q4 Financial Report'),
-    Immutable::event()
-        ->actor('user_2hG9kLm', name: 'Sarah Chen')
-        ->action('document.shared')
-        ->resource('doc_8nXpQr3', name: 'Q4 Financial Report')
-        ->target('team', 'team_5bR7cNx', name: 'Engineering'),
+AuditLog::trackBatch([
+    [
+        'actor_id' => 'user_2hG9kLm',
+        'actor_name' => 'Sarah Chen',
+        'action' => 'document.created',
+        'resource_id' => 'doc_8nXpQr3',
+        'resource_name' => 'Q4 Financial Report',
+    ],
+    [
+        'actor_id' => 'user_2hG9kLm',
+        'actor_name' => 'Sarah Chen',
+        'action' => 'document.shared',
+        'resource_id' => 'doc_8nXpQr3',
+        'targets' => [
+            ['type' => 'team', 'id' => 'team_5bR7cNx', 'name' => 'Engineering'],
+        ],
+    ],
 ]);
 ```
 
-## Using with Eloquent Models
-
-Track model events automatically:
+## Querying Events
 
 ```php
-use Immutable\Facades\Immutable;
+$response = AuditLog::getEvents([
+    'actor_id' => 'user_2hG9kLm',
+    'action' => 'document.*',
+    'from' => '2026-03-01T00:00:00Z',
+    'limit' => 25,
+]);
 
-// In an observer or model event listener
+// $response['data'] -- array of events
+// $response['pagination']['has_more'] -- boolean
+// $response['pagination']['next_cursor'] -- string|null
+```
+
+## Retrieving a Single Event
+
+```php
+$event = AuditLog::getEvent('9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d');
+
+$event['integrity']['event_hash'];
+$event['integrity']['previous_event_hash'];
+```
+
+## Verification
+
+```php
+$result = AuditLog::verify();
+
+if (!$result['data']['valid']) {
+    Log::critical('Audit log integrity violation', [
+        'breaks' => $result['data']['breaks'],
+    ]);
+}
+
+// With date range
+$result = AuditLog::verify('2026-03-01T00:00:00Z', '2026-03-31T23:59:59Z');
+```
+
+## Viewer Tokens
+
+```php
+$token = AuditLog::createViewerToken([
+    'tenantId' => 'org_7rT2xBc',
+    'actorId' => 'user_2hG9kLm',
+    'ttl' => 7200,
+]);
+
+$token['token'];      // JWT string
+$token['expires_at']; // ISO timestamp
+```
+
+## Alerts
+
+```php
+$alerts = AuditLog::getAlerts([
+    'rule_type' => 'new_country',
+    'limit' => 25,
+]);
+```
+
+## Exports
+
+```php
+$export = AuditLog::createExport([
+    'actor_id' => 'user_2hG9kLm',
+    'from' => '2026-03-01T00:00:00Z',
+]);
+
+$status = AuditLog::getExport($export['id']);
+```
+
+## Auto-Session Tracking
+
+The Laravel SDK can automatically attach the current Laravel session ID to every tracked event. Enable this in your configuration:
+
+```php
+// Auto-session reads from Laravel's session store
+// No explicit ->session() calls needed
+```
+
+## Eloquent Observer Example
+
+Track model events automatically using an Eloquent observer:
+
+```php
+namespace App\Observers;
+
+use App\Models\Document;
+use GetImmutable\AuditLog;
+
 class DocumentObserver
 {
     public function created(Document $document): void
     {
-        Immutable::event()
-            ->actor(auth()->id(), name: auth()->user()->name)
-            ->action('document.created')
-            ->resource($document->id, name: $document->title, type: 'document')
-            ->metadata(['size' => $document->size, 'mime_type' => $document->mime_type])
-            ->send();
+        AuditLog::track('document.created', 'document', [
+            'actor_id' => auth()->id(),
+            'actor_name' => auth()->user()?->name,
+            'resource_id' => $document->id,
+            'resource_name' => $document->title,
+            'metadata' => [
+                'size' => $document->size,
+                'mime_type' => $document->mime_type,
+            ],
+        ]);
+    }
+
+    public function updated(Document $document): void
+    {
+        AuditLog::track('document.updated', 'document', [
+            'actor_id' => auth()->id(),
+            'actor_name' => auth()->user()?->name,
+            'resource_id' => $document->id,
+            'resource_name' => $document->title,
+            'metadata' => [
+                'changed_fields' => array_keys($document->getDirty()),
+            ],
+        ]);
+    }
+
+    public function deleted(Document $document): void
+    {
+        AuditLog::track('document.deleted', 'document', [
+            'actor_id' => auth()->id(),
+            'actor_name' => auth()->user()?->name,
+            'resource_id' => $document->id,
+            'resource_name' => $document->title,
+        ]);
     }
 }
 ```
 
-## Error Handling
+Register the observer in your `AppServiceProvider`:
 
 ```php
-use Immutable\Facades\Immutable;
-use Immutable\Exceptions\ImmutableException;
+use App\Models\Document;
+use App\Observers\DocumentObserver;
 
-try {
-    Immutable::event()
-        ->actor('user_2hG9kLm')
-        ->action('document.created')
-        ->send();
-} catch (ImmutableException $e) {
-    Log::error('Immutable API error', [
-        'status' => $e->getCode(),
-        'message' => $e->getMessage(),
-    ]);
+public function boot(): void
+{
+    Document::observe(DocumentObserver::class);
 }
 ```
+
+## Queue Integration
+
+Set `GETIMMUTABLE_ASYNC=true` in your `.env` to dispatch tracking calls via Laravel's queue system instead of making synchronous HTTP requests. This prevents audit logging from blocking your application's response time.
+
+```env
+GETIMMUTABLE_ASYNC=true
+```
+
+Ensure your queue worker is running to process the dispatched jobs.

@@ -1,0 +1,70 @@
+---
+title: SOC 2 Compliance
+description: How Immutable helps you meet SOC 2 audit trail requirements.
+icon: building-shield
+---
+
+## Overview
+
+SOC 2 (Service Organization Control 2) requires organizations to maintain comprehensive audit trails of system activity. Immutable provides the infrastructure to meet these requirements without building a custom audit logging system.
+
+## SOC 2 Trust Services Criteria
+
+### CC6 -- Logical and Physical Access Controls
+
+SOC 2 CC6 requires organizations to record and monitor logical access to systems, including who accessed what, when, and from where.
+
+Immutable satisfies CC6 with:
+
+- **Append-only event storage** -- Every user action is recorded and cannot be modified or deleted via the API.
+- **Actor tracking** -- Each event captures who performed the action (`actor_id`, `actor_name`, `actor_type`).
+- **Geolocation enrichment** -- Automatic `ip_country` and `ip_city` on every event shows where access originated.
+- **Session tracking** -- `session_id` groups related events to reconstruct full user sessions.
+- **Retention** -- Pro plan provides 365 days of retention, meeting the typical SOC 2 CC6 requirement for one year of audit data.
+
+### CC7 -- System Operations / Monitoring
+
+SOC 2 CC7 requires monitoring for anomalies and security events.
+
+Immutable satisfies CC7 with:
+
+- **Alert rules** -- Five rule types (`new_country`, `high_volume_destructive`, `ingestion_spike`, `repeated_action`, `off_hours`) for real-time anomaly detection.
+- **Alert delivery** -- Notifications via email and webhook (with HMAC signatures) enable integration with your incident response workflow.
+- **Log streams** -- Fan out events to your SIEM (Splunk, Datadog, ELK) for centralized monitoring.
+
+### CC8 -- Change Management
+
+Immutable assists CC8 with:
+
+- **Hash chain verification** -- SHA-256 chain per workspace provides cryptographic proof that audit data has not been tampered with.
+- **Verification endpoint** -- Programmatic chain verification via `GET /api/v1/verify` can be automated on a schedule.
+
+## Admin Audit Logs
+
+Immutable records administrative actions within the platform itself (API key creation, team member changes, configuration updates). These admin audit logs provide a secondary layer of accountability.
+
+## Tamper Evidence
+
+Every event is linked in a SHA-256 [hash chain](/guides/hash-chain). To prove data integrity to an auditor:
+
+1. Run `GET /api/v1/verify` to validate the chain.
+2. The response shows `valid: true` with the number of events checked.
+3. Any tampering produces specific break reports with event IDs and hash details.
+
+See [Hash Verification](/security/hash-verification) for automating this check.
+
+## Recommended Plan
+
+For SOC 2 compliance, the **Pro plan** is recommended:
+
+- 365 days retention (meets one-year audit trail requirement)
+- 50 alert rules for comprehensive monitoring
+- 100 monthly exports for auditor reports
+- 50 event schemas for action validation
+- 10 log streams for SIEM integration
+
+Enterprise plans provide unlimited retention and custom rate limits for organizations with higher requirements.
+
+## CSV Exports for Auditors
+
+Generate [CSV exports](/platform/exports) filtered by date range, actor, action, or tenant to provide auditors with exactly the data they need. Exports include all event fields including integrity hashes.

@@ -9,21 +9,27 @@ Verify the SHA-256 hash chain for your workspace. Returns whether the chain is i
 
 ### Query Parameters
 
-<ParamField query="since" type="string">
+<ParamField query="from" type="string">
   ISO 8601 timestamp. Verify events from this time onward.
 </ParamField>
 
-<ParamField query="until" type="string">
+<ParamField query="to" type="string">
   ISO 8601 timestamp. Verify events up to this time.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="10000">
+  Maximum number of events to verify.
 </ParamField>
 
 ### Response (Valid Chain)
 
 ```json
 {
-  "valid": true,
-  "events_checked": 4821,
-  "breaks": []
+  "data": {
+    "valid": true,
+    "events_checked": 4821,
+    "breaks": []
+  }
 }
 ```
 
@@ -31,47 +37,69 @@ Verify the SHA-256 hash chain for your workspace. Returns whether the chain is i
 
 ```json
 {
-  "valid": false,
-  "events_checked": 4821,
-  "breaks": [
-    {
-      "type": "hash_mismatch",
-      "event_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-      "expected_hash": "a3f2c8d1e4b567890abcdef...",
-      "actual_hash": "ff00ab12cd34ef5678901234..."
-    },
-    {
-      "type": "chain_break",
-      "event_id": "c4d5e6f7-8a9b-0c1d-2e3f-4a5b6c7d8e9f",
-      "expected_previous_hash": "7b9e1d3f5a2c67890abcdef...",
-      "actual_previous_hash": "0000000000000000000000..."
-    }
-  ]
+  "data": {
+    "valid": false,
+    "events_checked": 4821,
+    "breaks": [
+      {
+        "event_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+        "type": "hash_mismatch",
+        "expected_hash": "a3f2c8d1e4b567890abcdef...",
+        "actual_hash": "ff00ab12cd34ef5678901234..."
+      },
+      {
+        "event_id": "c4d5e6f7-8a9b-0c1d-2e3f-4a5b6c7d8e9f",
+        "type": "chain_break",
+        "expected_hash": "7b9e1d3f5a2c67890abcdef...",
+        "actual_hash": "0000000000000000000000..."
+      }
+    ]
+  }
 }
 ```
 
 ### Break Types
 
-<ResponseField name="hash_mismatch" type="object">
-  The stored hash does not match the recomputed hash. Indicates the event data has been modified.
+<ResponseField name="hash_mismatch">
+  The stored hash does not match the recomputed hash. Indicates the event data has been modified after ingestion.
 </ResponseField>
 
-<ResponseField name="chain_break" type="object">
-  The `previous_event_hash` on an event does not match the hash of the preceding event. Indicates an event was inserted or deleted.
+<ResponseField name="chain_break">
+  The `previous_event_hash` on an event does not match the hash of the preceding event. Indicates an event was inserted into or deleted from the chain.
 </ResponseField>
 
 ### Examples
 
 <CodeGroup>
 
-```bash cURL — Full verification
+```bash cURL -- Full verification
 curl https://getimmutable.dev/api/v1/verify \
   -H "Authorization: Bearer imk_your_api_key_here"
 ```
 
-```bash cURL — Date range
-curl "https://getimmutable.dev/api/v1/verify?since=2026-03-01T00:00:00Z&until=2026-03-31T23:59:59Z" \
+```bash cURL -- Date range
+curl "https://getimmutable.dev/api/v1/verify?from=2026-03-01T00:00:00Z&to=2026-03-31T23:59:59Z" \
   -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+```typescript JavaScript
+// Full chain
+const result = await client.verify();
+
+// Date range
+const ranged = await client.verify(
+  "2026-03-01T00:00:00Z",
+  "2026-03-31T23:59:59Z"
+);
+```
+
+```php Laravel
+$result = AuditLog::verify();
+
+$ranged = AuditLog::verify(
+    '2026-03-01T00:00:00Z',
+    '2026-03-31T23:59:59Z'
+);
 ```
 
 </CodeGroup>

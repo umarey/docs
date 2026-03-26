@@ -1,0 +1,109 @@
+---
+title: Activity Intelligence
+description: Use alert rules and geolocation for security monitoring and anomaly detection.
+icon: radar
+---
+
+## Overview
+
+Immutable's Activity Intelligence combines [alert rules](/platform/alert-rules), [geolocation enrichment](/guides/geolocation), and [session tracking](/guides/session-tracking) to detect suspicious behavior in real time.
+
+## Suspicious Login Detection
+
+Combine `new_country` and `off_hours` alert rules to detect potential account compromise:
+
+### New Country Alert
+
+Triggers when a user logs in from a country they have never been seen in before.
+
+**Example scenario:** A user who normally logs in from `US` suddenly appears from `RU`. The alert fires immediately and notifies your security team.
+
+### Off-Hours Alert
+
+Triggers when actions occur outside configured business hours.
+
+**Example scenario:** A `user.login` event at 3:00 AM local time from an admin account.
+
+### Combined Detection
+
+When both alerts fire for the same event, the confidence that the account is compromised is much higher. Configure your webhook handler to escalate events that trigger multiple rules:
+
+```typescript
+app.post("/webhook/immutable", (req, res) => {
+  const payload = JSON.parse(req.body);
+
+  if (payload.event_type === "alert.triggered") {
+    const { rule_type, event } = payload;
+
+    // Track which rules fire per actor
+    const key = `alerts:${event.actor_id}`;
+    await redis.sadd(key, rule_type);
+    await redis.expire(key, 3600); // 1 hour window
+
+    const triggeredRules = await redis.smembers(key);
+
+    // Escalate if multiple rules fire for the same actor
+    if (triggeredRules.includes("new_country") && triggeredRules.includes("off_hours")) {
+      await lockAccount(event.actor_id);
+      await notifySecurityTeam({
+        actor: event.actor_id,
+        rules: triggeredRules,
+        country: event.ip_country,
+      });
+    }
+  }
+
+  res.status(200).send("OK");
+});
+```
+
+## Volume Spike Detection
+
+The `ingestion_spike` rule detects unusual event volume relative to your workspace's normal baseline. This can indicate:
+
+- A compromised API key generating large volumes of events
+- A misconfigured integration sending duplicate events
+- A denial-of-service attempt flooding your audit log
+
+## Brute Force Detection
+
+The `repeated_action` rule detects when the same action is performed repeatedly by the same actor. Configure it to watch for:
+
+- `user.login` -- Detect brute-force login attempts
+- `api_key.used` -- Detect API key abuse
+- `password.reset` -- Detect account takeover attempts
+
+## Mass Deletion Detection
+
+The `high_volume_destructive` rule triggers when many destructive actions (`*.deleted`, `*.removed`) occur in a short window. This protects against:
+
+- Disgruntled employees deleting data
+- Compromised admin accounts performing bulk operations
+- Application bugs causing cascading deletes
+
+## Querying Alerts Programmatically
+
+Build a security dashboard by querying triggered alerts:
+
+```typescript
+const alerts = await client.getAlerts({
+  rule_type: "new_country",
+  from: "2026-03-01T00:00:00Z",
+  limit: 100,
+});
+
+for (const alert of alerts.data) {
+  console.log(`${alert.rule_name}: ${alert.reason}`);
+}
+```
+
+## Alert Delivery Channels
+
+All alerts support two delivery channels:
+
+| Channel | Description |
+| ------- | ----------- |
+| **Email** | Sent to workspace members with admin or owner roles |
+| **Webhook** | POSTed to your endpoint with [HMAC-SHA256 signature](/security/webhook-signatures) |
+
+Configure both channels to ensure alerts reach your team through multiple paths.

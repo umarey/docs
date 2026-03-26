@@ -1,0 +1,54 @@
+---
+title: IP Allowlisting
+description: Restrict API access to specific IP addresses and CIDR ranges.
+icon: shield
+---
+
+## Overview
+
+IP allowlisting lets you restrict API access to a set of trusted IP addresses or CIDR ranges. When enabled, requests from unlisted IPs are rejected with `403 Forbidden`.
+
+## How It Works
+
+1. Add IP addresses or CIDR ranges to your workspace allowlist from **Settings > Security** in the dashboard.
+2. Once the allowlist is non-empty, only requests from listed IPs are permitted.
+3. Requests from unlisted IPs receive a `403` response.
+
+```json
+{
+  "error": "forbidden",
+  "message": "Your IP address is not in the workspace allowlist."
+}
+```
+
+<Warning>
+  Be careful when enabling IP allowlisting. If you add an incorrect range and lock yourself out, you will need to contact support to reset the allowlist. Always include your current IP address before enabling.
+</Warning>
+
+## CIDR Notation
+
+IP allowlisting supports both individual addresses and CIDR ranges:
+
+| Entry | Matches |
+| ----- | ------- |
+| `203.0.113.42` | Single IP address |
+| `203.0.113.0/24` | 256 addresses (`203.0.113.0` through `203.0.113.255`) |
+| `10.0.0.0/8` | All `10.x.x.x` addresses |
+| `2001:db8::/32` | IPv6 range |
+
+## Scope
+
+The allowlist applies to **all API keys** in the workspace. There is no per-key allowlisting -- if you need different access restrictions, use separate workspaces.
+
+<Note>
+  Leave the allowlist empty to permit requests from any IP address. IP allowlisting is optional.
+</Note>
+
+## Plan Quotas
+
+| Plan | IP Allowlist Entries |
+| ---- | -------------------- |
+| Free | 2 |
+| Starter | 10 |
+| Pro | 50 |
+| Enterprise | Unlimited |

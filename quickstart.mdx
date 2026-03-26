@@ -1,130 +1,191 @@
 ---
 title: Quickstart
 description: Send your first audit event in under 5 minutes.
+icon: rocket
 ---
 
-## 1. Get an API Key
+<Steps>
+  <Step title="Sign up and create a workspace">
+    Go to [getimmutable.dev](https://getimmutable.dev) and create an account. A workspace is automatically created for you on registration.
+  </Step>
 
-Sign up at [getimmutable.dev](https://getimmutable.dev) and create a workspace. Navigate to **Settings > API Keys** and generate a new key. Copy the full key immediately -- it is only shown once.
+  <Step title="Create an API key">
+    Navigate to **Settings > API Keys** in your dashboard and generate a new key. Copy the full key immediately.
 
-API keys use the `imk_` prefix (e.g. `imk_a1b2c3d4e5f6g7h8i9j0...`).
+    <Warning>
+      API keys are only shown once at creation. The key is bcrypt hashed before storage -- Immutable never stores your raw key. If you lose it, revoke and create a new one.
+    </Warning>
 
-## 2. Install the SDK
+    Your key uses the `imk_` prefix:
+    ```
+    imk_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0...
+    ```
+  </Step>
 
-<CodeGroup>
+  <Step title="Install an SDK">
+    <Tabs>
+      <Tab title="JavaScript">
+        ```bash
+        npm install @getimmutable/sdk
+        ```
+      </Tab>
+      <Tab title="Laravel">
+        ```bash
+        composer require getimmutable/laravel
+        ```
+        Add to your `.env`:
+        ```env
+        GETIMMUTABLE_API_KEY=imk_your_api_key_here
+        GETIMMUTABLE_BASE_URL=https://getimmutable.dev
+        ```
+      </Tab>
+      <Tab title="cURL">
+        No installation needed. Use any HTTP client.
+      </Tab>
+    </Tabs>
+  </Step>
 
-```bash npm
-npm install @getimmutable/sdk
-```
+  <Step title="Send your first event">
+    <CodeGroup>
 
-```bash yarn
-yarn add @getimmutable/sdk
-```
+    ```typescript JavaScript
+    import { ImmutableClient } from "@getimmutable/sdk";
 
-```bash pnpm
-pnpm add @getimmutable/sdk
-```
+    const client = new ImmutableClient({
+      apiKey: "imk_your_api_key_here",
+      baseUrl: "https://getimmutable.dev",
+    });
 
-</CodeGroup>
+    const result = await client.track({
+      actor_id: "user_2hG9kLm",
+      actor_name: "Sarah Chen",
+      action: "document.created",
+      resource_id: "doc_8nXpQr3",
+      resource_name: "Q4 Financial Report",
+      resource: "document",
+      metadata: { folder: "reports", template: "quarterly" },
+    });
 
-## 3. Send Your First Event
+    console.log(result.id);     // "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+    console.log(result.status); // "queued"
+    ```
 
-<CodeGroup>
+    ```php Laravel
+    use GetImmutable\AuditLog;
 
-```typescript JavaScript / TypeScript
-import { Immutable } from "@getimmutable/sdk";
+    AuditLog::track('document.created', 'document', [
+        'actor_id' => 'user_2hG9kLm',
+        'actor_name' => 'Sarah Chen',
+        'resource_id' => 'doc_8nXpQr3',
+        'resource_name' => 'Q4 Financial Report',
+        'metadata' => ['folder' => 'reports', 'template' => 'quarterly'],
+    ]);
+    ```
 
-const immutable = new Immutable({
-  apiKey: "imk_your_api_key_here",
-});
+    ```bash cURL
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_your_api_key_here" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "user_2hG9kLm",
+        "actor_name": "Sarah Chen",
+        "action": "document.created",
+        "resource_id": "doc_8nXpQr3",
+        "resource_name": "Q4 Financial Report",
+        "resource": "document",
+        "metadata": {
+          "folder": "reports",
+          "template": "quarterly"
+        }
+      }'
+    ```
 
-await immutable
-  .event()
-  .actor("user_2hG9kLm", { name: "Sarah Chen" })
-  .action("document.created")
-  .resource("doc_8nXpQr3", { name: "Q4 Financial Report" })
-  .metadata({ folder: "reports", template: "quarterly" })
-  .send();
-```
+    </CodeGroup>
 
-```bash cURL
-curl -X POST https://getimmutable.dev/api/v1/events \
-  -H "Authorization: Bearer imk_your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "actor_id": "user_2hG9kLm",
-    "actor_name": "Sarah Chen",
-    "action": "document.created",
-    "resource_id": "doc_8nXpQr3",
-    "resource_name": "Q4 Financial Report",
-    "metadata": {
-      "folder": "reports",
-      "template": "quarterly"
+    The API returns `202 Accepted` with a pre-generated event ID:
+
+    ```json
+    {
+      "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "status": "queued"
     }
-  }'
-```
+    ```
+  </Step>
 
-</CodeGroup>
+  <Step title="Query your events">
+    <CodeGroup>
 
-The API returns `202 Accepted` with a pre-generated event ID:
+    ```typescript JavaScript
+    const response = await client.getEvents({
+      actor_id: "user_2hG9kLm",
+      limit: 10,
+    });
 
-```json
-{
-  "status": "queued",
-  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
-}
-```
+    console.log(response.data);
+    console.log(response.pagination.has_more);
+    ```
 
-## 4. Query Your Events
+    ```php Laravel
+    $events = AuditLog::getEvents(['actor_id' => 'user_2hG9kLm', 'limit' => 10]);
+    ```
 
-<CodeGroup>
+    ```bash cURL
+    curl "https://getimmutable.dev/api/v1/events?actor_id=user_2hG9kLm&limit=10" \
+      -H "Authorization: Bearer imk_your_api_key_here"
+    ```
 
-```typescript JavaScript / TypeScript
-const events = await immutable.events.list({
-  actor_id: "user_2hG9kLm",
-  per_page: 10,
-});
+    </CodeGroup>
 
-console.log(events.data);
-```
+    Response:
 
-```bash cURL
-curl https://getimmutable.dev/api/v1/events?actor_id=user_2hG9kLm&per_page=10 \
-  -H "Authorization: Bearer imk_your_api_key_here"
-```
-
-</CodeGroup>
-
-## 5. Verify Integrity
-
-Confirm that no events have been tampered with:
-
-```bash
-curl https://getimmutable.dev/api/v1/verify \
-  -H "Authorization: Bearer imk_your_api_key_here"
-```
-
-```json
-{
-  "valid": true,
-  "events_checked": 1,
-  "breaks": []
-}
-```
+    ```json
+    {
+      "data": [
+        {
+          "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+          "actor": { "id": "user_2hG9kLm", "name": "Sarah Chen", "type": null },
+          "action": "document.created",
+          "action_category": null,
+          "resource": { "type": "document", "id": "doc_8nXpQr3", "name": "Q4 Financial Report" },
+          "targets": [],
+          "metadata": { "folder": "reports", "template": "quarterly" },
+          "tenant_id": null,
+          "session_id": null,
+          "ip_country": "US",
+          "ip_city": "San Francisco",
+          "idempotency_key": null,
+          "version": null,
+          "integrity": {
+            "event_hash": "a3f2c8d1e4b5...",
+            "previous_event_hash": null
+          },
+          "occurred_at": "2026-03-26T10:15:00.000000Z",
+          "created_at": "2026-03-26T10:15:00.000000Z"
+        }
+      ],
+      "pagination": {
+        "has_more": false,
+        "next_cursor": null,
+        "total": 1
+      }
+    }
+    ```
+  </Step>
+</Steps>
 
 ## Next Steps
 
 <CardGroup cols={2}>
   <Card title="Event Structure" icon="table" href="/guides/events">
-    Learn about every field available on an event.
+    Understand every field on an event.
   </Card>
   <Card title="Hash Chain" icon="link" href="/guides/hash-chain">
-    Understand how tamper evidence works.
-  </Card>
-  <Card title="Batch Ingestion" icon="layer-group" href="/api-reference/batch-events">
-    Send up to 100 events at once.
+    Learn how tamper evidence works.
   </Card>
   <Card title="JavaScript SDK" icon="js" href="/sdks/javascript">
-    Explore the full SDK reference.
+    Full SDK reference with fluent builder.
+  </Card>
+  <Card title="Laravel SDK" icon="php" href="/sdks/laravel">
+    Facade, auto-session, Eloquent observers.
   </Card>
 </CardGroup>

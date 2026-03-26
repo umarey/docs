@@ -5,32 +5,20 @@ description: Generate JWT tokens for the embeddable audit log viewer.
 
 ## POST /api/v1/viewer-token
 
-Create a short-lived JWT token that can be used to embed a read-only audit log viewer in your application. Tokens are scoped to specific filters so end users only see relevant events.
+Create a short-lived JWT token scoped to specific filters. The token holder can only view events matching the specified constraints.
 
 ### Request Body
 
-<ParamField body="filters" type="object">
-  Filter constraints for the viewer session. The token holder can only see events matching these filters.
+<ParamField body="tenant_id" type="string">
+  Restrict to events for a specific tenant.
+</ParamField>
 
-  <ParamField body="filters.actor_id" type="string">
-    Restrict to events by a specific actor.
-  </ParamField>
-
-  <ParamField body="filters.resource_id" type="string">
-    Restrict to events on a specific resource.
-  </ParamField>
-
-  <ParamField body="filters.tenant_id" type="string">
-    Restrict to events for a specific tenant.
-  </ParamField>
-
-  <ParamField body="filters.action" type="string">
-    Restrict to events matching an action pattern.
-  </ParamField>
+<ParamField body="actor_id" type="string">
+  Restrict to events by a specific actor.
 </ParamField>
 
 <ParamField body="ttl" type="integer" default="3600">
-  Token lifetime in seconds. Maximum 86400 (24 hours).
+  Token lifetime in seconds. Minimum 60, maximum 86400 (24 hours).
 </ParamField>
 
 ### Response
@@ -51,35 +39,30 @@ curl -X POST https://getimmutable.dev/api/v1/viewer-token \
   -H "Authorization: Bearer imk_your_api_key_here" \
   -H "Content-Type: application/json" \
   -d '{
-    "filters": {
-      "tenant_id": "org_7rT2xBc",
-      "resource_id": "doc_8nXpQr3"
-    },
+    "tenant_id": "org_7rT2xBc",
     "ttl": 7200
   }'
 ```
 
 ```typescript JavaScript
-const response = await fetch("https://getimmutable.dev/api/v1/viewer-token", {
-  method: "POST",
-  headers: {
-    "Authorization": "Bearer imk_your_api_key_here",
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    filters: { tenant_id: "org_7rT2xBc" },
-    ttl: 7200,
-  }),
+const { token, expires_at } = await client.createViewerToken({
+  tenantId: "org_7rT2xBc",
+  ttl: 7200,
 });
+```
 
-const { token, expires_at } = await response.json();
+```php Laravel
+$result = AuditLog::createViewerToken([
+    'tenantId' => 'org_7rT2xBc',
+    'ttl' => 7200,
+]);
 ```
 
 </CodeGroup>
 
-### Usage
+### Embedding
 
-Pass the token to your frontend to render the embedded viewer. The viewer fetches events directly from Immutable using the scoped token -- no server-side proxy needed.
+Pass the token to your frontend to render the embedded viewer:
 
 ```html
 <iframe
@@ -90,6 +73,8 @@ Pass the token to your frontend to render the embedded viewer. The viewer fetche
 ></iframe>
 ```
 
+See the [Embeddable Viewer guide](/guides/embeddable-viewer) for React component examples and TTL management.
+
 <Note>
-  Viewer tokens are read-only. They cannot be used to ingest events or access any write endpoints.
+  Viewer tokens are **read-only**. They cannot be used to ingest events or access any write endpoints.
 </Note>

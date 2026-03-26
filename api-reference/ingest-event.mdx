@@ -46,7 +46,7 @@ Ingest a single event into your workspace audit log. Returns `202 Accepted` with
 </ParamField>
 
 <ParamField body="targets" type="array">
-  Array of target objects `{type, id, name}` for multi-resource events.
+  Array of target objects. Each target has `type` (required), `id`, `name`, and optional `metadata`.
 </ParamField>
 
 <ParamField body="occurred_at" type="string">
@@ -62,7 +62,7 @@ Ingest a single event into your workspace audit log. Returns `202 Accepted` with
 </ParamField>
 
 <ParamField body="idempotency_key" type="string">
-  Unique key for deduplication.
+  Unique key for deduplication. If a duplicate is detected, returns the original event ID with status `duplicate`.
 </ParamField>
 
 <ParamField body="version" type="integer">
@@ -75,8 +75,17 @@ Returns `202 Accepted`:
 
 ```json
 {
-  "status": "queued",
-  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "status": "queued"
+}
+```
+
+If a duplicate `idempotency_key` is detected:
+
+```json
+{
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "status": "duplicate"
 }
 ```
 
@@ -110,16 +119,46 @@ curl -X POST https://getimmutable.dev/api/v1/events \
 ```
 
 ```typescript JavaScript
-const result = await immutable
-  .event()
-  .actor("user_2hG9kLm", { name: "Sarah Chen", type: "user" })
-  .action("document.created", { category: "documents" })
-  .resource("doc_8nXpQr3", { name: "Q4 Financial Report", type: "document" })
-  .metadata({ folder: "reports", template: "quarterly" })
-  .target("folder", "folder_3mK9pLq", { name: "Shared Reports" })
-  .session("sess_4kN8pLm")
-  .tenant("org_7rT2xBc")
-  .send();
+import { ImmutableClient } from "@getimmutable/sdk";
+
+const client = new ImmutableClient({
+  apiKey: "imk_your_api_key_here",
+  baseUrl: "https://getimmutable.dev",
+});
+
+const result = await client.track({
+  actor_id: "user_2hG9kLm",
+  actor_name: "Sarah Chen",
+  actor_type: "user",
+  action: "document.created",
+  action_category: "documents",
+  resource_id: "doc_8nXpQr3",
+  resource_name: "Q4 Financial Report",
+  resource: "document",
+  metadata: { folder: "reports", template: "quarterly" },
+  targets: [
+    { type: "folder", id: "folder_3mK9pLq", name: "Shared Reports" },
+  ],
+  session_id: "sess_4kN8pLm",
+  tenant_id: "org_7rT2xBc",
+});
+```
+
+```php Laravel
+use GetImmutable\AuditLog;
+
+AuditLog::session('sess_4kN8pLm')
+    ->actionCategory('documents')
+    ->target('folder', 'folder_3mK9pLq', 'Shared Reports')
+    ->track('document.created', 'document', [
+        'actor_id' => 'user_2hG9kLm',
+        'actor_name' => 'Sarah Chen',
+        'actor_type' => 'user',
+        'resource_id' => 'doc_8nXpQr3',
+        'resource_name' => 'Q4 Financial Report',
+        'tenant_id' => 'org_7rT2xBc',
+        'metadata' => ['folder' => 'reports', 'template' => 'quarterly'],
+    ]);
 ```
 
 </CodeGroup>

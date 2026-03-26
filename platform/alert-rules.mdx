@@ -1,0 +1,101 @@
+---
+title: Alert Rules
+description: Real-time notifications when specific conditions are detected in your audit log.
+icon: bell
+---
+
+## Overview
+
+Alert rules monitor your event stream in real time and trigger notifications when specific conditions are met. Configure rules from **Settings > Alerts** in the dashboard.
+
+## Rule Types
+
+Immutable provides five built-in alert rule types:
+
+### `new_country`
+
+Triggers when an actor performs an action from a country they have never been seen in before. Requires [geolocation enrichment](/guides/geolocation).
+
+**Use case:** Detect potential account compromise. A user who normally logs in from the US suddenly appears from an unrecognized country.
+
+### `high_volume_destructive`
+
+Triggers when a high volume of destructive actions (e.g. `*.deleted`, `*.removed`) occurs within a short time window.
+
+**Use case:** Detect mass deletion attacks or accidental bulk operations.
+
+### `ingestion_spike`
+
+Triggers when event ingestion volume exceeds a configurable threshold relative to the workspace's normal baseline.
+
+**Use case:** Detect unusual API activity that may indicate a compromised API key or a misconfigured integration.
+
+### `repeated_action`
+
+Triggers when the same action is performed repeatedly by the same actor within a short time window.
+
+**Use case:** Detect brute-force login attempts, automated scraping, or retry loops.
+
+### `off_hours`
+
+Triggers when actions occur outside of configured business hours.
+
+**Use case:** Detect suspicious activity during nights, weekends, or holidays.
+
+## Alert Delivery
+
+Alerts are delivered through two channels:
+
+### Email
+
+Alert notifications are sent to workspace members with **admin** or **owner** roles.
+
+### Webhook
+
+Alerts are POSTed to your configured endpoint as JSON with HMAC-SHA256 signature verification.
+
+**Headers:**
+- `Content-Type: application/json`
+- `X-Immutable-Signature: sha256={hmac_hash}`
+
+**Payload:**
+
+```json
+{
+  "event_type": "alert.triggered",
+  "alert_id": "alt_4f7a8b9c-0d1e-2f3a-4b5c-6d7e8f9a0b1c",
+  "rule_name": "Suspicious Login",
+  "rule_type": "new_country",
+  "reason": "Actor user_2hG9kLm logged in from DE for the first time",
+  "event": {
+    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "action": "user.login",
+    "actor_id": "user_2hG9kLm",
+    "ip_country": "DE"
+  },
+  "workspace_id": "ws_1a2b3c4d",
+  "triggered_at": "2026-03-26T08:45:12.000000Z"
+}
+```
+
+See [Webhook Signatures](/security/webhook-signatures) for how to verify the `X-Immutable-Signature` header.
+
+## Querying Alerts
+
+Retrieve triggered alerts via the API:
+
+```bash
+curl "https://getimmutable.dev/api/v1/alerts?rule_type=new_country&limit=25" \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+See the [Alerts API reference](/api-reference/alerts) for all query parameters.
+
+## Plan Quotas
+
+| Plan | Alert Rule Limit |
+| ---- | ---------------- |
+| Free | 2 |
+| Starter | 10 |
+| Pro | 50 |
+| Enterprise | Unlimited |

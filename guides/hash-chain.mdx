@@ -1,48 +1,50 @@
 ---
 title: Hash Chain
 description: SHA-256 cryptographic chain for tamper-evident audit logs.
+icon: link
 ---
 
 ## How It Works
 
-Every event in Immutable is linked to the previous event in a per-workspace SHA-256 hash chain. This creates a tamper-evident seal across your entire audit trail.
+Every event in Immutable is linked to the previous event in a per-workspace SHA-256 hash chain. This creates a tamper-evident seal across your entire audit trail -- if any event is modified, inserted, or deleted at the database level, the chain breaks and the tampering is detectable.
 
 ```
-Event 1          Event 2          Event 3
-┌──────────┐     ┌──────────┐     ┌──────────┐
-│ data     │     │ data     │     │ data     │
-│ prev: ── │────>│ prev: h1 │────>│ prev: h2 │
-│ hash: h1 │     │ hash: h2 │     │ hash: h3 │
-└──────────┘     └──────────┘     └──────────┘
+Event 1              Event 2              Event 3
+┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+│ data        │      │ data        │      │ data        │
+│ prev: null  │─────>│ prev: h1    │─────>│ prev: h2    │
+│ hash: h1    │      │ hash: h2    │      │ hash: h3    │
+└─────────────┘      └─────────────┘      └─────────────┘
 ```
 
-### Hash Computation
+The first event in a workspace has `previous_event_hash` set to `null`.
 
-Each event hash is a SHA-256 digest of:
+## Hash Computation
 
-- `workspace_id`
-- `actor_id`, `actor_name`, `actor_type`
-- `action`, `action_category`
-- `resource_id`, `resource_name`, `resource`
-- `metadata` (recursively key-sorted)
-- `targets` (sorted by type, then id)
-- `occurred_at`
-- `ip_address`, `ip_country`, `ip_city`, `user_agent`
-- `tenant_id`, `session_id`
-- `idempotency_key`, `version`
-- `previous_event_hash`
+Each event hash is a SHA-256 digest computed from **all event fields**:
+
+| Field Group | Fields |
+| ----------- | ------ |
+| Identity | `workspace_id` |
+| Actor | `actor_id`, `actor_name`, `actor_type` |
+| Action | `action`, `action_category` |
+| Resource | `resource_id`, `resource_name`, `resource` |
+| Context | `metadata`, `targets`, `occurred_at` |
+| Network | `ip_address`, `ip_country`, `ip_city`, `user_agent` |
+| Tracking | `tenant_id`, `session_id`, `idempotency_key`, `version` |
+| Chain | `previous_event_hash` |
 
 <Note>
-  Metadata keys are recursively sorted and targets are sorted by `type` then `id` before hashing. This ensures deterministic hashes regardless of JSON key order or array ordering in your database.
+  Metadata keys are **recursively sorted** and targets are **sorted by `type` then `id`** before hashing. This ensures deterministic hashes regardless of JSON key order or array ordering in the database.
 </Note>
 
-### Chain Ordering
+## Chain Ordering
 
-Events are chained by `created_at` (server-side timestamp with microsecond precision), not `occurred_at` (client-provided time). This guarantees a consistent, linear chain even when clients report out-of-order timestamps.
+Events are chained by `created_at` (server-side timestamp with microsecond precision), **not** `occurred_at` (client-provided time). This guarantees a consistent, linear chain even when clients report out-of-order timestamps.
 
-### Concurrency Safety
+## Concurrency Safety
 
-Immutable uses PostgreSQL advisory locks (`pg_advisory_xact_lock`) scoped to each workspace to ensure that concurrent event ingestion does not produce conflicting hash chains.
+Immutable uses PostgreSQL advisory locks (`pg_advisory_xact_lock` scoped by workspace ID via `crc32`) to ensure concurrent event ingestion does not produce conflicting hash chains. Only one event per workspace is hashed at a time.
 
 ## Integrity Block
 
@@ -57,8 +59,6 @@ Every event returned by the API includes an `integrity` block:
 }
 ```
 
-The first event in a workspace has `previous_event_hash` set to `null`.
-
 ## Verifying the Chain
 
 Use the [verify endpoint](/api-reference/verify-chain) to validate the entire chain or a date range:
@@ -70,33 +70,39 @@ curl https://getimmutable.dev/api/v1/verify \
 
 ```json
 {
-  "valid": true,
-  "events_checked": 4821,
-  "breaks": []
+  "data": {
+    "valid": true,
+    "events_checked": 4821,
+    "breaks": []
+  }
 }
 ```
 
-### Break Types
+See [Hash Verification](/security/hash-verification) for programmatic monitoring.
 
-If tampering is detected, the `breaks` array contains objects describing each issue:
+## Break Types
 
-| Type             | Description                                           |
-| ---------------- | ----------------------------------------------------- |
-| `hash_mismatch`  | The stored hash does not match the recomputed hash.   |
-| `chain_break`    | The `previous_event_hash` does not match the prior event's hash. |
+If tampering is detected, the `breaks` array describes each issue:
+
+| Type | Description |
+| ---- | ----------- |
+| `hash_mismatch` | The stored hash does not match the recomputed hash. The event data was modified. |
+| `chain_break` | The `previous_event_hash` does not match the prior event's hash. An event was inserted or deleted. |
 
 ```json
 {
-  "valid": false,
-  "events_checked": 4821,
-  "breaks": [
-    {
-      "type": "hash_mismatch",
-      "event_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-      "expected_hash": "a3f2c8d1...",
-      "actual_hash": "ff00ab12..."
-    }
-  ]
+  "data": {
+    "valid": false,
+    "events_checked": 4821,
+    "breaks": [
+      {
+        "event_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+        "type": "hash_mismatch",
+        "expected_hash": "a3f2c8d1...",
+        "actual_hash": "ff00ab12..."
+      }
+    ]
+  }
 }
 ```
 
@@ -106,4 +112,4 @@ If tampering is detected, the `breaks` array contains objects describing each is
 
 ## Batch Event Ordering
 
-When events are ingested via the [batch endpoint](/api-reference/batch-events), each event's `created_at` is offset by 1 microsecond to preserve insertion order. This ensures the hash chain is computed in the correct sequence.
+When events are ingested via the [batch endpoint](/api-reference/batch-events), each event's `created_at` is offset by 1 microsecond to preserve insertion order. Without this offset, batch events would share the same `created_at` value and UUID-based ordering would not match insertion order, causing false `chain_break` errors during verification.

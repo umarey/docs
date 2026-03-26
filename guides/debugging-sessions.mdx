@@ -1,0 +1,112 @@
+---
+title: Debugging with Sessions
+description: Use session tracking to investigate user-reported issues step by step.
+icon: bug
+---
+
+## Scenario
+
+A user named Sarah reports that she uploaded a document but it disappeared from her folder. You need to figure out what happened.
+
+## Investigation
+
+<Steps>
+  <Step title="Get the session ID">
+    From your application logs or the user's support ticket, identify the session ID. If you are using the [auto-session](/guides/session-tracking) feature, this is typically your framework's session ID.
+
+    ```
+    Session ID: sess_4kN8pLm
+    ```
+  </Step>
+
+  <Step title="Query events by session">
+    Retrieve all events from that session to see the full sequence of actions:
+
+    <CodeGroup>
+
+    ```bash cURL
+    curl "https://getimmutable.dev/api/v1/events?session_id=sess_4kN8pLm&limit=100" \
+      -H "Authorization: Bearer imk_your_api_key_here"
+    ```
+
+    ```typescript JavaScript
+    const events = await client.getEvents({
+      session_id: "sess_4kN8pLm",
+      limit: 100,
+    });
+    ```
+
+    </CodeGroup>
+  </Step>
+
+  <Step title="Analyze the timeline">
+    The response shows the exact sequence of actions Sarah performed:
+
+    ```json
+    {
+      "data": [
+        {
+          "action": "user.login",
+          "occurred_at": "2026-03-26T09:00:12.000000Z"
+        },
+        {
+          "action": "document.uploaded",
+          "resource": { "type": "document", "id": "doc_8nXpQr3", "name": "Q4 Report.pdf" },
+          "targets": [
+            { "type": "folder", "id": "folder_3mK9pLq", "name": "Reports" }
+          ],
+          "occurred_at": "2026-03-26T09:05:34.000000Z"
+        },
+        {
+          "action": "document.moved",
+          "resource": { "type": "document", "id": "doc_8nXpQr3", "name": "Q4 Report.pdf" },
+          "targets": [
+            { "type": "folder", "id": "folder_3mK9pLq", "name": "Reports" },
+            { "type": "folder", "id": "folder_9xY2zAb", "name": "Archive" }
+          ],
+          "occurred_at": "2026-03-26T09:06:01.000000Z"
+        }
+      ]
+    }
+    ```
+  </Step>
+
+  <Step title="Identify the issue">
+    The timeline reveals that Sarah uploaded the document at 09:05, then 27 seconds later a `document.moved` action moved it to the "Archive" folder. This was likely an accidental drag-and-drop.
+
+    You can now inform Sarah where her document went and investigate whether the move was intentional or triggered by a UI bug.
+  </Step>
+</Steps>
+
+## Additional Queries
+
+### Filter by actor within a session
+
+```bash
+curl "https://getimmutable.dev/api/v1/events?session_id=sess_4kN8pLm&actor_id=user_2hG9kLm" \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+### Search for specific actions
+
+```bash
+curl "https://getimmutable.dev/api/v1/events?session_id=sess_4kN8pLm&action=document.*" \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+### Check geolocation
+
+If the session shows actions from unexpected locations, the account may be compromised:
+
+```bash
+curl "https://getimmutable.dev/api/v1/events?session_id=sess_4kN8pLm" \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+Check `ip_country` and `ip_city` on each event to verify consistent location.
+
+## Tips
+
+- Include `session_id` on every event for maximum debugging value. The [auto-session](/guides/session-tracking) feature in the Laravel SDK does this automatically.
+- Use descriptive action names (`document.moved`, not `action_42`) so timelines are readable without looking up codes.
+- Include [targets](/guides/targets) on multi-resource actions so you can see source/destination without parsing metadata.
