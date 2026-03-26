@@ -49,7 +49,7 @@
           },
           {
             "group": "SDKs",
-            "pages": ["sdks/javascript", "sdks/laravel"]
+            "pages": ["sdks/javascript", "sdks/laravel", "sdks/python"]
           },
           {
             "group": "Integration Guides",

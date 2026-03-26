@@ -39,6 +39,11 @@ icon: rocket
         GETIMMUTABLE_BASE_URL=https://getimmutable.dev
         ```
       </Tab>
+      <Tab title="Python">
+        ```bash
+        pip install getimmutable
+        ```
+      </Tab>
       <Tab title="cURL">
         No installation needed. Use any HTTP client.
       </Tab>
@@ -80,6 +85,28 @@ icon: rocket
         'resource_name' => 'Q4 Financial Report',
         'metadata' => ['folder' => 'reports', 'template' => 'quarterly'],
     ]);
+    ```
+
+    ```python Python
+    from getimmutable import ImmutableClient
+
+    client = ImmutableClient(
+        api_key="imk_your_api_key_here",
+        base_url="https://getimmutable.dev",
+    )
+
+    result = client.track({
+        "actor_id": "user_2hG9kLm",
+        "actor_name": "Sarah Chen",
+        "action": "document.created",
+        "resource_id": "doc_8nXpQr3",
+        "resource_name": "Q4 Financial Report",
+        "resource": "document",
+        "metadata": {"folder": "reports", "template": "quarterly"},
+    })
+
+    print(result["id"])      # "9b1deb4d-..."
+    print(result["status"])  # "queued"
     ```
 
     ```bash cURL
@@ -127,6 +154,14 @@ icon: rocket
 
     ```php Laravel
     $events = AuditLog::getEvents(['actor_id' => 'user_2hG9kLm', 'limit' => 10]);
+    ```
+
+    ```python Python
+    result = client.get_events(actor_id="user_2hG9kLm", limit=10)
+
+    for event in result["data"]:
+        print(event["action"])
+    print(result["pagination"]["has_more"])
     ```
 
     ```bash cURL
