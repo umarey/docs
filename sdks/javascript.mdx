@@ -184,6 +184,9 @@ const ranged = await client.verify(
   "2026-03-01T00:00:00Z",
   "2026-03-31T23:59:59Z"
 );
+
+// With a custom limit (default: 10000)
+const limited = await client.verify(undefined, undefined, 1000);
 ```
 
 ## Viewer Tokens
@@ -196,7 +199,7 @@ const token = await client.createViewerToken({
 });
 
 console.log(token.token);      // "eyJhbGciOiJIUzI1NiIs..."
-console.log(token.expires_at); // "2026-03-26T12:15:00Z"
+console.log(token.expires_at); // 1774540500 (Unix timestamp)
 ```
 
 ## Alerts
@@ -218,8 +221,8 @@ const exp = await client.createExport({
 });
 
 // Check status
-const status = await client.getExport(exp.id);
-console.log(status.status); // "pending" | "processing" | "completed" | "failed"
+const status = await client.getExport(exp.data.id);
+console.log(status.data.status); // "pending" | "processing" | "completed" | "failed"
 ```
 
 ## Error Handling

@@ -97,7 +97,7 @@ $export = AuditLog::createExport([
     'to' => '2026-03-31T23:59:59Z',
 ]);
 
-$status = AuditLog::getExport($export['id']);
+$status = AuditLog::getExport($export['data']['id']);
 ```
 
 </CodeGroup>

@@ -153,6 +153,9 @@ if (!$result['data']['valid']) {
 
 // With date range
 $result = AuditLog::verify('2026-03-01T00:00:00Z', '2026-03-31T23:59:59Z');
+
+// With custom limit (default: 10000)
+$result = AuditLog::verify(null, null, 1000);
 ```
 
 ## Viewer Tokens
@@ -165,7 +168,7 @@ $token = AuditLog::createViewerToken([
 ]);
 
 $token['token'];      // JWT string
-$token['expires_at']; // ISO timestamp
+$token['expires_at']; // Unix timestamp (integer)
 ```
 
 ## Alerts
@@ -185,7 +188,8 @@ $export = AuditLog::createExport([
     'from' => '2026-03-01T00:00:00Z',
 ]);
 
-$status = AuditLog::getExport($export['id']);
+$status = AuditLog::getExport($export['data']['id']);
+// $status['data']['status'] -- 'pending', 'processing', 'completed', or 'failed'
 ```
 
 ## Auto-Session Tracking
