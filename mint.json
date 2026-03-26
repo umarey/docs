@@ -1,0 +1,20 @@
+{
+  "name": "Immutable",
+  "logo": { "dark": "/logo/dark.svg", "light": "/logo/light.svg" },
+  "favicon": "/favicon.svg",
+  "colors": { "primary": "#0D9373" },
+  "topbarLinks": [{ "name": "Dashboard", "url": "https://getimmutable.dev" }],
+  "tabs": [
+    { "name": "API Reference", "url": "api-reference" }
+  ],
+  "navigation": [
+    { "group": "Getting Started", "pages": ["introduction", "quickstart", "authentication"] },
+    { "group": "SDKs", "pages": ["sdks/javascript", "sdks/laravel"] },
+    { "group": "API Reference", "pages": [
+      "api-reference/ingest-event",
+      "api-reference/batch-events",
+      "api-reference/list-events",
+      "api-reference/verify-chain"
+    ]}
+  ]
+}
