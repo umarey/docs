@@ -1,0 +1,40 @@
+---
+title: Download Export
+description: Download a completed CSV export via signed URL.
+---
+
+## GET /api/v1/exports/{id}/download
+
+Redirects to a signed download URL for a completed export. The signed URL expires after **7 days**.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The export identifier.
+</ParamField>
+
+### Response
+
+Returns `302 Found` with a `Location` header pointing to the signed download URL.
+
+```
+HTTP/1.1 302 Found
+Location: https://storage.example.com/exports/exp_9c2f4a7b...csv?signature=...&expires=1711497600
+```
+
+### Example
+
+```bash
+# Follow the redirect to download
+curl -L https://getimmutable.dev/api/v1/exports/exp_9c2f4a7b-1d3e-4f5a-8b6c-7d8e9f0a1b2c/download \
+  -H "Authorization: Bearer imk_your_api_key_here" \
+  -o audit_export.csv
+```
+
+### Errors
+
+| Status | Description                                         |
+| ------ | --------------------------------------------------- |
+| `404`  | Export not found.                                   |
+| `409`  | Export is not yet completed. Check status first.    |
+| `410`  | Download link has expired (older than 7 days).      |

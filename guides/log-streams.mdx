@@ -1,0 +1,71 @@
+---
+title: Log Streams
+description: Stream audit events to external destinations in real time.
+---
+
+## Overview
+
+Log streams fan out your audit events to external destinations as they are ingested. Immutable supports two destination types: **HTTPS webhooks** and **S3-compatible storage**.
+
+## Destination Types
+
+<CardGroup cols={2}>
+  <Card title="HTTPS Webhook" icon="globe">
+    Events are POSTed to your endpoint as JSON with HMAC signature verification.
+  </Card>
+  <Card title="S3 Storage" icon="hard-drive">
+    Events are written to your S3-compatible bucket (AWS S3, Cloudflare R2, MinIO, etc.).
+  </Card>
+</CardGroup>
+
+## HTTPS Webhooks
+
+### Setup
+
+Provide a URL and an optional signing secret. Immutable sends a `POST` request for each event with:
+
+- `Content-Type: application/json`
+- `X-Immutable-Signature` header containing an HMAC-SHA256 signature
+
+### Verifying Signatures
+
+```typescript
+import { createHmac } from "crypto";
+
+function verifySignature(payload: string, signature: string, secret: string): boolean {
+  const expected = createHmac("sha256", secret).update(payload).digest("hex");
+  return expected === signature;
+}
+```
+
+### Failure Handling
+
+If your endpoint returns a non-2xx status code, Immutable retries with exponential backoff. After **3 consecutive failures**, the stream is automatically moved to an `error` state and stops delivering events.
+
+Re-enable the stream from the dashboard after resolving the issue.
+
+## S3 Storage
+
+Configure a stream with your S3-compatible credentials:
+
+- **Bucket** -- The target bucket name
+- **Region** -- Bucket region (e.g. `us-east-1`)
+- **Access Key ID** -- Your storage access key
+- **Secret Access Key** -- Your storage secret key
+- **Endpoint** -- Custom endpoint for non-AWS providers (e.g. Cloudflare R2)
+- **Prefix** -- Optional path prefix for objects
+
+<Note>
+  Immutable uses Laravel's `Storage::build()` to connect to your bucket at runtime. Credentials are encrypted at rest.
+</Note>
+
+## Quotas
+
+| Plan       | Stream Limit |
+| ---------- | ------------ |
+| Free       | 1            |
+| Starter    | 3            |
+| Pro        | 10           |
+| Enterprise | Unlimited    |
+
+Log streams are quota-gated, not plan-gated -- every plan can use them.

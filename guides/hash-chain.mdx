@@ -1,0 +1,109 @@
+---
+title: Hash Chain
+description: SHA-256 cryptographic chain for tamper-evident audit logs.
+---
+
+## How It Works
+
+Every event in Immutable is linked to the previous event in a per-workspace SHA-256 hash chain. This creates a tamper-evident seal across your entire audit trail.
+
+```
+Event 1          Event 2          Event 3
+┌──────────┐     ┌──────────┐     ┌──────────┐
+│ data     │     │ data     │     │ data     │
+│ prev: ── │────>│ prev: h1 │────>│ prev: h2 │
+│ hash: h1 │     │ hash: h2 │     │ hash: h3 │
+└──────────┘     └──────────┘     └──────────┘
+```
+
+### Hash Computation
+
+Each event hash is a SHA-256 digest of:
+
+- `workspace_id`
+- `actor_id`, `actor_name`, `actor_type`
+- `action`, `action_category`
+- `resource_id`, `resource_name`, `resource`
+- `metadata` (recursively key-sorted)
+- `targets` (sorted by type, then id)
+- `occurred_at`
+- `ip_address`, `ip_country`, `ip_city`, `user_agent`
+- `tenant_id`, `session_id`
+- `idempotency_key`, `version`
+- `previous_event_hash`
+
+<Note>
+  Metadata keys are recursively sorted and targets are sorted by `type` then `id` before hashing. This ensures deterministic hashes regardless of JSON key order or array ordering in your database.
+</Note>
+
+### Chain Ordering
+
+Events are chained by `created_at` (server-side timestamp with microsecond precision), not `occurred_at` (client-provided time). This guarantees a consistent, linear chain even when clients report out-of-order timestamps.
+
+### Concurrency Safety
+
+Immutable uses PostgreSQL advisory locks (`pg_advisory_xact_lock`) scoped to each workspace to ensure that concurrent event ingestion does not produce conflicting hash chains.
+
+## Integrity Block
+
+Every event returned by the API includes an `integrity` block:
+
+```json
+{
+  "integrity": {
+    "event_hash": "a3f2c8d1e4b567890abcdef1234567890abcdef1234567890abcdef12345678",
+    "previous_event_hash": "7b9e1d3f5a2c67890abcdef1234567890abcdef1234567890abcdef12345678"
+  }
+}
+```
+
+The first event in a workspace has `previous_event_hash` set to `null`.
+
+## Verifying the Chain
+
+Use the [verify endpoint](/api-reference/verify-chain) to validate the entire chain or a date range:
+
+```bash
+curl https://getimmutable.dev/api/v1/verify \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+```json
+{
+  "valid": true,
+  "events_checked": 4821,
+  "breaks": []
+}
+```
+
+### Break Types
+
+If tampering is detected, the `breaks` array contains objects describing each issue:
+
+| Type             | Description                                           |
+| ---------------- | ----------------------------------------------------- |
+| `hash_mismatch`  | The stored hash does not match the recomputed hash.   |
+| `chain_break`    | The `previous_event_hash` does not match the prior event's hash. |
+
+```json
+{
+  "valid": false,
+  "events_checked": 4821,
+  "breaks": [
+    {
+      "type": "hash_mismatch",
+      "event_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "expected_hash": "a3f2c8d1...",
+      "actual_hash": "ff00ab12..."
+    }
+  ]
+}
+```
+
+<Warning>
+  Legacy events ingested before hash chain activation have nullable hash fields. The verify endpoint skips these events and does not report them as breaks.
+</Warning>
+
+## Batch Event Ordering
+
+When events are ingested via the [batch endpoint](/api-reference/batch-events), each event's `created_at` is offset by 1 microsecond to preserve insertion order. This ensures the hash chain is computed in the correct sequence.

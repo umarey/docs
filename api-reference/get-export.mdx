@@ -1,0 +1,47 @@
+---
+title: Get Export
+description: Check the status of a CSV export.
+---
+
+## GET /api/v1/exports/{id}
+
+Retrieve the current status of an export.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The export identifier.
+</ParamField>
+
+### Response
+
+```json
+{
+  "id": "exp_9c2f4a7b-1d3e-4f5a-8b6c-7d8e9f0a1b2c",
+  "status": "completed",
+  "filters": {
+    "actor_id": "user_2hG9kLm",
+    "since": "2026-03-01T00:00:00Z",
+    "until": "2026-03-31T23:59:59Z"
+  },
+  "event_count": 1247,
+  "created_at": "2026-03-26T10:15:00Z",
+  "completed_at": "2026-03-26T10:15:34Z"
+}
+```
+
+### Status Values
+
+| Status       | Description                          |
+| ------------ | ------------------------------------ |
+| `pending`    | Export is queued for processing.     |
+| `processing` | Export is being generated.           |
+| `completed`  | Export is ready for download.        |
+| `failed`     | Export generation failed.            |
+
+### Example
+
+```bash
+curl https://getimmutable.dev/api/v1/exports/exp_9c2f4a7b-1d3e-4f5a-8b6c-7d8e9f0a1b2c \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```

@@ -1,0 +1,137 @@
+---
+title: Events
+description: The core data model -- append-only, immutable audit log entries.
+---
+
+## Overview
+
+Events are the fundamental unit of Immutable. Each event represents a single action taken by an actor on a resource. Events are **append-only** -- once recorded, they cannot be modified or deleted through the API.
+
+## Event Structure
+
+<ResponseField name="id" type="string" required>
+  UUID v4 identifier, pre-generated at ingestion time.
+</ResponseField>
+
+<ResponseField name="actor_id" type="string" required>
+  Identifier of the user or system that performed the action. Example: `user_2hG9kLm`.
+</ResponseField>
+
+<ResponseField name="actor_name" type="string">
+  Human-readable name of the actor. Example: `Sarah Chen`.
+</ResponseField>
+
+<ResponseField name="actor_type" type="string">
+  Type of actor. Example: `user`, `system`, `api_client`.
+</ResponseField>
+
+<ResponseField name="action" type="string" required>
+  The action performed, typically in `resource.verb` format. Example: `document.created`.
+</ResponseField>
+
+<ResponseField name="action_category" type="string">
+  Optional category for grouping actions. Example: `documents`, `billing`.
+</ResponseField>
+
+<ResponseField name="resource_id" type="string">
+  Identifier of the primary resource affected. Example: `doc_8nXpQr3`.
+</ResponseField>
+
+<ResponseField name="resource_name" type="string">
+  Human-readable name of the resource. Example: `Q4 Financial Report`.
+</ResponseField>
+
+<ResponseField name="resource" type="string">
+  Resource type. Example: `document`, `invoice`.
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+  Arbitrary JSON object for additional context. Example: `{"folder": "reports", "pages": 12}`.
+</ResponseField>
+
+<ResponseField name="targets" type="array">
+  Array of additional resources involved in the event. See [Targets](/guides/targets).
+</ResponseField>
+
+<ResponseField name="occurred_at" type="string">
+  ISO 8601 timestamp of when the event occurred (client time). Defaults to server time if omitted.
+</ResponseField>
+
+<ResponseField name="session_id" type="string">
+  Session identifier for grouping related events. Example: `sess_4kN8pLm`.
+</ResponseField>
+
+<ResponseField name="tenant_id" type="string">
+  Your customer's tenant identifier for multi-tenant isolation. Example: `org_7rT2xBc`.
+</ResponseField>
+
+<ResponseField name="idempotency_key" type="string">
+  Unique key for deduplication. Duplicate events with the same key are rejected.
+</ResponseField>
+
+<ResponseField name="version" type="integer">
+  Version number for the event schema. Useful for tracking event format changes.
+</ResponseField>
+
+## Example Event
+
+```json
+{
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "actor_id": "user_2hG9kLm",
+  "actor_name": "Sarah Chen",
+  "actor_type": "user",
+  "action": "document.updated",
+  "action_category": "documents",
+  "resource_id": "doc_8nXpQr3",
+  "resource_name": "Q4 Financial Report",
+  "resource": "document",
+  "metadata": {
+    "changes": ["title", "content"],
+    "previous_title": "Q3 Financial Report"
+  },
+  "targets": [
+    { "type": "folder", "id": "folder_3mK9pLq", "name": "Reports" }
+  ],
+  "occurred_at": "2026-03-15T14:32:18.847312Z",
+  "session_id": "sess_4kN8pLm",
+  "tenant_id": "org_7rT2xBc",
+  "ip_address": "203.0.113.42",
+  "ip_country": "US",
+  "ip_city": "San Francisco",
+  "user_agent": "Mozilla/5.0 ...",
+  "integrity": {
+    "event_hash": "a3f2c8d1e4b5...",
+    "previous_event_hash": "7b9e1d3f5a2c..."
+  },
+  "created_at": "2026-03-15T14:32:18.847312Z"
+}
+```
+
+## Immutability
+
+Events are designed to be permanent records:
+
+- The API provides no `PUT`, `PATCH`, or `DELETE` endpoints for events.
+- Each event is cryptographically linked to the previous event in a [hash chain](/guides/hash-chain).
+- Any tampering at the database level is detectable via the [verify endpoint](/api-reference/verify-chain).
+
+## Idempotency
+
+Include an `idempotency_key` to prevent duplicate events from retries or network issues. If Immutable receives a second event with the same idempotency key, it returns the original event ID without creating a duplicate.
+
+```json
+{
+  "actor_id": "user_2hG9kLm",
+  "action": "payment.completed",
+  "idempotency_key": "pay_tx_20260315_abc123"
+}
+```
+
+## Geo Enrichment
+
+Immutable automatically enriches events with geographic data derived from the client IP address:
+
+- `ip_address` -- The originating IP
+- `ip_country` -- Two-letter country code (e.g. `US`)
+- `ip_city` -- City name (e.g. `San Francisco`)

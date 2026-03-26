@@ -1,0 +1,64 @@
+---
+title: Create Export
+description: Generate a filtered CSV export of audit log events.
+---
+
+## POST /api/v1/exports
+
+Create a new CSV export with optional filters. Exports are processed in the background.
+
+### Request Body
+
+<ParamField body="actor_id" type="string">
+  Filter exported events by actor identifier.
+</ParamField>
+
+<ParamField body="action" type="string">
+  Filter by action. Supports wildcard patterns.
+</ParamField>
+
+<ParamField body="resource_id" type="string">
+  Filter by primary resource identifier.
+</ParamField>
+
+<ParamField body="since" type="string">
+  ISO 8601 timestamp. Export events from this time onward.
+</ParamField>
+
+<ParamField body="until" type="string">
+  ISO 8601 timestamp. Export events up to this time.
+</ParamField>
+
+### Response
+
+Returns `201 Created`:
+
+```json
+{
+  "id": "exp_9c2f4a7b-1d3e-4f5a-8b6c-7d8e9f0a1b2c",
+  "status": "pending",
+  "filters": {
+    "actor_id": "user_2hG9kLm",
+    "since": "2026-03-01T00:00:00Z",
+    "until": "2026-03-31T23:59:59Z"
+  },
+  "created_at": "2026-03-26T10:15:00Z"
+}
+```
+
+### Example
+
+```bash
+curl -X POST https://getimmutable.dev/api/v1/exports \
+  -H "Authorization: Bearer imk_your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "actor_id": "user_2hG9kLm",
+    "since": "2026-03-01T00:00:00Z",
+    "until": "2026-03-31T23:59:59Z"
+  }'
+```
+
+<Warning>
+  Events outside your [retention window](/guides/retention) are not included in exports. Check your plan's retention period before exporting historical data.
+</Warning>

@@ -1,11 +1,11 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Immutable",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#0D0D0D",
+    "light": "#4A90D9",
+    "dark": "#E5E7EB"
   },
   "favicon": "/favicon.svg",
   "navigation": {
@@ -14,56 +14,52 @@
         "tab": "Guides",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Getting Started",
+            "pages": ["index", "quickstart", "authentication"]
+          },
+          {
+            "group": "Concepts",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "guides/events",
+              "guides/hash-chain",
+              "guides/targets",
+              "guides/schemas",
+              "guides/exports",
+              "guides/log-streams",
+              "guides/retention"
             ]
           },
           {
-            "group": "Customization",
-            "pages": [
-              "essentials/settings",
-              "essentials/navigation"
-            ]
-          },
-          {
-            "group": "Writing content",
-            "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
-            ]
+            "group": "SDKs",
+            "pages": ["sdks/javascript", "sdks/laravel"]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
+          { "group": "Overview", "pages": ["api-reference/introduction"] },
           {
-            "group": "API documentation",
+            "group": "Events",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/ingest-event",
+              "api-reference/batch-events",
+              "api-reference/list-events",
+              "api-reference/get-event"
+            ]
+          },
+          { "group": "Verification", "pages": ["api-reference/verify-chain"] },
+          {
+            "group": "Exports",
+            "pages": [
+              "api-reference/create-export",
+              "api-reference/get-export",
+              "api-reference/download-export"
             ]
           },
           {
-            "group": "Endpoint examples",
-            "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
-            ]
+            "group": "Other",
+            "pages": ["api-reference/alerts", "api-reference/viewer-token"]
           }
         ]
       }
@@ -71,52 +67,22 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
+          "anchor": "Dashboard",
+          "href": "https://getimmutable.dev",
+          "icon": "gauge"
         }
       ]
     }
   },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
+  "logo": { "light": "/logo/light.svg", "dark": "/logo/dark.svg" },
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
     "primary": {
       "type": "button",
       "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "href": "https://getimmutable.dev"
     }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
   },
   "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    "socials": { "x": "https://x.com/getimmutable" }
   }
 }

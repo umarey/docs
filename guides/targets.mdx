@@ -1,0 +1,67 @@
+---
+title: Targets
+description: Attach multiple resources to a single event with targets.
+---
+
+## Overview
+
+While every event has a primary `resource_id`, many actions involve multiple resources. The `targets` field lets you attach additional resources to an event, making it easy to track cross-resource actions.
+
+## Structure
+
+Each target has three fields:
+
+<ResponseField name="type" type="string" required>
+  The type of resource. Example: `folder`, `team`, `permission`.
+</ResponseField>
+
+<ResponseField name="id" type="string" required>
+  The resource identifier. Example: `folder_3mK9pLq`.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Human-readable name. Example: `Engineering Team`.
+</ResponseField>
+
+## Example
+
+A user moves a document into a folder and shares it with a team:
+
+```json
+{
+  "actor_id": "user_2hG9kLm",
+  "actor_name": "Sarah Chen",
+  "action": "document.shared",
+  "resource_id": "doc_8nXpQr3",
+  "resource_name": "Q4 Financial Report",
+  "targets": [
+    { "type": "folder", "id": "folder_3mK9pLq", "name": "Shared Reports" },
+    { "type": "team", "id": "team_5bR7cNx", "name": "Engineering" }
+  ]
+}
+```
+
+## Filtering by Target
+
+Query events by target using the `target_type` and `target_id` parameters:
+
+```bash
+curl "https://getimmutable.dev/api/v1/events?target_type=folder&target_id=folder_3mK9pLq" \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+This returns all events where the specified target appears in the `targets` array, regardless of the primary resource.
+
+## Use Cases
+
+| Scenario                    | Primary Resource       | Targets                          |
+| --------------------------- | ---------------------- | -------------------------------- |
+| File moved to folder        | File                   | Source folder, destination folder |
+| User added to team          | User                   | Team, role                       |
+| Permission granted          | Permission             | User, resource                   |
+| Invoice payment applied     | Invoice                | Payment method, subscription     |
+| Merge request approved      | Merge request          | Repository, reviewer             |
+
+## Hash Chain
+
+Targets are included in the [hash chain](/guides/hash-chain) computation. They are sorted by `type` then `id` before hashing to ensure deterministic results regardless of the order you provide them.

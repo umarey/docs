@@ -1,0 +1,116 @@
+---
+title: List Events
+description: Query audit log events with filtering and cursor pagination.
+---
+
+## GET /api/v1/events
+
+Retrieve a paginated list of events with optional filters.
+
+### Query Parameters
+
+<ParamField query="actor_id" type="string">
+  Filter by actor identifier.
+</ParamField>
+
+<ParamField query="action" type="string">
+  Filter by action. Supports wildcard patterns (e.g. `document.*`).
+</ParamField>
+
+<ParamField query="resource_id" type="string">
+  Filter by primary resource identifier.
+</ParamField>
+
+<ParamField query="session_id" type="string">
+  Filter by session identifier.
+</ParamField>
+
+<ParamField query="target_type" type="string">
+  Filter by target type (requires `target_id`).
+</ParamField>
+
+<ParamField query="target_id" type="string">
+  Filter by target identifier (requires `target_type`).
+</ParamField>
+
+<ParamField query="search" type="string">
+  Case-insensitive search across actor_name, action, resource_name, and metadata.
+</ParamField>
+
+<ParamField query="since" type="string">
+  ISO 8601 timestamp. Return events created at or after this time.
+</ParamField>
+
+<ParamField query="until" type="string">
+  ISO 8601 timestamp. Return events created at or before this time.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  Pagination cursor from a previous response.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="25">
+  Number of events per page (max 100).
+</ParamField>
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "actor_id": "user_2hG9kLm",
+      "actor_name": "Sarah Chen",
+      "action": "document.created",
+      "resource_id": "doc_8nXpQr3",
+      "resource_name": "Q4 Financial Report",
+      "metadata": { "folder": "reports" },
+      "targets": [],
+      "occurred_at": "2026-03-15T14:32:18.847312Z",
+      "integrity": {
+        "event_hash": "a3f2c8d1e4b5...",
+        "previous_event_hash": "7b9e1d3f5a2c..."
+      },
+      "created_at": "2026-03-15T14:32:18.847312Z"
+    }
+  ],
+  "has_more": true,
+  "next_cursor": "eyJjcmVhdGVkX2F0IjoiMjAyNi0wMy0xNVQxNDozMjoxOC44NDczMTJaIn0"
+}
+```
+
+### Examples
+
+<CodeGroup>
+
+```bash cURL
+curl "https://getimmutable.dev/api/v1/events?actor_id=user_2hG9kLm&action=document.*&since=2026-03-01T00:00:00Z&per_page=10" \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+```typescript JavaScript
+const events = await immutable.events.list({
+  actor_id: "user_2hG9kLm",
+  action: "document.*",
+  since: "2026-03-01T00:00:00Z",
+  per_page: 10,
+});
+```
+
+</CodeGroup>
+
+### Pagination
+
+To iterate through all results, pass the `next_cursor` value from each response as the `cursor` parameter in the next request. When `has_more` is `false`, you have reached the end.
+
+```typescript
+let cursor: string | undefined;
+do {
+  const page = await immutable.events.list({ cursor, per_page: 100 });
+  for (const event of page.data) {
+    process(event);
+  }
+  cursor = page.has_more ? page.next_cursor : undefined;
+} while (cursor);
+```

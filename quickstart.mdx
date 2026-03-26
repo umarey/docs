@@ -1,80 +1,130 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Send your first audit event in under 5 minutes.
 ---
 
-## Get started in three steps
+## 1. Get an API Key
 
-Get your documentation site running locally and make your first customization.
+Sign up at [getimmutable.dev](https://getimmutable.dev) and create a workspace. Navigate to **Settings > API Keys** and generate a new key. Copy the full key immediately -- it is only shown once.
 
-### Step 1: Set up your local environment
+API keys use the `imk_` prefix (e.g. `imk_a1b2c3d4e5f6g7h8i9j0...`).
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+## 2. Install the SDK
 
-### Step 2: Deploy your changes
+<CodeGroup>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+```bash npm
+npm install @getimmutable/sdk
+```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+```bash yarn
+yarn add @getimmutable/sdk
+```
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+```bash pnpm
+pnpm add @getimmutable/sdk
+```
 
-### Step 3: Go live
+</CodeGroup>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+## 3. Send Your First Event
 
-## Next steps
+<CodeGroup>
 
-Now that you have your docs running, explore these key features:
+```typescript JavaScript / TypeScript
+import { Immutable } from "@getimmutable/sdk";
+
+const immutable = new Immutable({
+  apiKey: "imk_your_api_key_here",
+});
+
+await immutable
+  .event()
+  .actor("user_2hG9kLm", { name: "Sarah Chen" })
+  .action("document.created")
+  .resource("doc_8nXpQr3", { name: "Q4 Financial Report" })
+  .metadata({ folder: "reports", template: "quarterly" })
+  .send();
+```
+
+```bash cURL
+curl -X POST https://getimmutable.dev/api/v1/events \
+  -H "Authorization: Bearer imk_your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "actor_id": "user_2hG9kLm",
+    "actor_name": "Sarah Chen",
+    "action": "document.created",
+    "resource_id": "doc_8nXpQr3",
+    "resource_name": "Q4 Financial Report",
+    "metadata": {
+      "folder": "reports",
+      "template": "quarterly"
+    }
+  }'
+```
+
+</CodeGroup>
+
+The API returns `202 Accepted` with a pre-generated event ID:
+
+```json
+{
+  "status": "queued",
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+}
+```
+
+## 4. Query Your Events
+
+<CodeGroup>
+
+```typescript JavaScript / TypeScript
+const events = await immutable.events.list({
+  actor_id: "user_2hG9kLm",
+  per_page: 10,
+});
+
+console.log(events.data);
+```
+
+```bash cURL
+curl https://getimmutable.dev/api/v1/events?actor_id=user_2hG9kLm&per_page=10 \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+</CodeGroup>
+
+## 5. Verify Integrity
+
+Confirm that no events have been tampered with:
+
+```bash
+curl https://getimmutable.dev/api/v1/verify \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+```json
+{
+  "valid": true,
+  "events_checked": 1,
+  "breaks": []
+}
+```
+
+## Next Steps
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Event Structure" icon="table" href="/guides/events">
+    Learn about every field available on an event.
+  </Card>
+  <Card title="Hash Chain" icon="link" href="/guides/hash-chain">
+    Understand how tamper evidence works.
+  </Card>
+  <Card title="Batch Ingestion" icon="layer-group" href="/api-reference/batch-events">
+    Send up to 100 events at once.
+  </Card>
+  <Card title="JavaScript SDK" icon="js" href="/sdks/javascript">
+    Explore the full SDK reference.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

@@ -1,0 +1,128 @@
+---
+title: JavaScript / TypeScript SDK
+description: Zero-dependency TypeScript SDK for the Immutable API.
+---
+
+## Installation
+
+<CodeGroup>
+
+```bash npm
+npm install @getimmutable/sdk
+```
+
+```bash yarn
+yarn add @getimmutable/sdk
+```
+
+```bash pnpm
+pnpm add @getimmutable/sdk
+```
+
+</CodeGroup>
+
+## Setup
+
+```typescript
+import { Immutable } from "@getimmutable/sdk";
+
+const immutable = new Immutable({
+  apiKey: "imk_your_api_key_here",
+  // Optional: override base URL (defaults to https://getimmutable.dev)
+  // baseUrl: "https://getimmutable.dev",
+});
+```
+
+## Sending Events
+
+Use the fluent builder to construct and send events:
+
+```typescript
+const result = await immutable
+  .event()
+  .actor("user_2hG9kLm", { name: "Sarah Chen", type: "user" })
+  .action("document.created", { category: "documents" })
+  .resource("doc_8nXpQr3", { name: "Q4 Financial Report", type: "document" })
+  .metadata({ folder: "reports", template: "quarterly" })
+  .target("folder", "folder_3mK9pLq", { name: "Shared Reports" })
+  .target("team", "team_5bR7cNx", { name: "Engineering" })
+  .session("sess_4kN8pLm")
+  .tenant("org_7rT2xBc")
+  .idempotencyKey("unique_key_123")
+  .occurredAt(new Date("2026-03-15T14:32:18Z"))
+  .send();
+
+console.log(result.id); // "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+console.log(result.status); // "queued"
+```
+
+## Batch Ingestion
+
+Send up to 100 events in a single request:
+
+```typescript
+const results = await immutable.sendBatch([
+  immutable
+    .event()
+    .actor("user_2hG9kLm", { name: "Sarah Chen" })
+    .action("document.created")
+    .resource("doc_8nXpQr3", { name: "Q4 Financial Report" }),
+  immutable
+    .event()
+    .actor("user_2hG9kLm", { name: "Sarah Chen" })
+    .action("document.shared")
+    .resource("doc_8nXpQr3", { name: "Q4 Financial Report" })
+    .target("team", "team_5bR7cNx", { name: "Engineering" }),
+]);
+```
+
+## Querying Events
+
+```typescript
+const events = await immutable.events.list({
+  actor_id: "user_2hG9kLm",
+  action: "document.*",
+  since: "2026-03-01T00:00:00Z",
+  per_page: 25,
+});
+
+// Cursor pagination
+if (events.has_more) {
+  const nextPage = await immutable.events.list({
+    cursor: events.next_cursor,
+  });
+}
+```
+
+## Retrieving a Single Event
+
+```typescript
+const event = await immutable.events.get("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d");
+
+console.log(event.integrity.event_hash);
+console.log(event.integrity.previous_event_hash);
+```
+
+## Error Handling
+
+The SDK throws typed errors for API failures:
+
+```typescript
+try {
+  await immutable.event().action("document.created").send();
+} catch (error) {
+  if (error.status === 422) {
+    console.error("Validation failed:", error.message);
+  } else if (error.status === 429) {
+    console.error("Rate limited. Retry after:", error.retryAfter);
+  }
+}
+```
+
+## Features
+
+- **Zero dependencies** -- Uses native `fetch`, no external packages
+- **TypeScript strict** -- Full type definitions with strict mode
+- **Fluent builder** -- Chainable API for constructing events
+- **Tree-shakeable** -- Import only what you need
+- **Isomorphic** -- Works in Node.js, Bun, Deno, and edge runtimes

@@ -1,0 +1,51 @@
+---
+title: Retention & Archival
+description: Per-plan retention policies with automatic archival to cold storage.
+---
+
+## Retention Periods
+
+Each plan has a defined retention window. Events older than the retention period are archived and eventually removed from the primary database.
+
+| Plan       | Retention     |
+| ---------- | ------------- |
+| Free       | 30 days       |
+| Starter    | 90 days       |
+| Pro        | 365 days      |
+| Enterprise | Unlimited     |
+
+## Archival Process
+
+Immutable runs a daily archival job at **3:00 AM UTC**:
+
+1. Events outside the retention window are serialized as **gzipped JSON Lines** (`.jsonl.gz`).
+2. Archives are uploaded to Cloudflare R2 cold storage.
+3. Only after a successful upload are events removed from the primary database.
+
+This upload-before-delete approach ensures no data is lost during archival.
+
+<Note>
+  Enterprise plans have unlimited retention. Events are never archived or deleted.
+</Note>
+
+## Impact on Features
+
+### Exports
+
+Exports only include events within your retention window. The export dialog displays a warning if your selected date range extends beyond the retention boundary.
+
+### Verification
+
+The [hash chain](/guides/hash-chain) remains valid after archival. Archived events are excluded from verification, and the chain continues from the oldest non-archived event.
+
+### Querying
+
+Archived events are not returned by the [list events](/api-reference/list-events) or [get event](/api-reference/get-event) endpoints. Filter with `since` and `until` parameters to stay within your retention window.
+
+## Upgrading Plans
+
+When you upgrade to a plan with a longer retention period, events that have not yet been archived become available again immediately. Events already archived and deleted are not restored.
+
+<Warning>
+  If you downgrade your plan, the shorter retention period takes effect at the next archival run. Export any data you need before downgrading.
+</Warning>

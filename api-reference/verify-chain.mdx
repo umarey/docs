@@ -1,0 +1,81 @@
+---
+title: Verify Chain
+description: Validate the integrity of your workspace's hash chain.
+---
+
+## GET /api/v1/verify
+
+Verify the SHA-256 hash chain for your workspace. Returns whether the chain is intact and details of any breaks detected.
+
+### Query Parameters
+
+<ParamField query="since" type="string">
+  ISO 8601 timestamp. Verify events from this time onward.
+</ParamField>
+
+<ParamField query="until" type="string">
+  ISO 8601 timestamp. Verify events up to this time.
+</ParamField>
+
+### Response (Valid Chain)
+
+```json
+{
+  "valid": true,
+  "events_checked": 4821,
+  "breaks": []
+}
+```
+
+### Response (Tampered Chain)
+
+```json
+{
+  "valid": false,
+  "events_checked": 4821,
+  "breaks": [
+    {
+      "type": "hash_mismatch",
+      "event_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "expected_hash": "a3f2c8d1e4b567890abcdef...",
+      "actual_hash": "ff00ab12cd34ef5678901234..."
+    },
+    {
+      "type": "chain_break",
+      "event_id": "c4d5e6f7-8a9b-0c1d-2e3f-4a5b6c7d8e9f",
+      "expected_previous_hash": "7b9e1d3f5a2c67890abcdef...",
+      "actual_previous_hash": "0000000000000000000000..."
+    }
+  ]
+}
+```
+
+### Break Types
+
+<ResponseField name="hash_mismatch" type="object">
+  The stored hash does not match the recomputed hash. Indicates the event data has been modified.
+</ResponseField>
+
+<ResponseField name="chain_break" type="object">
+  The `previous_event_hash` on an event does not match the hash of the preceding event. Indicates an event was inserted or deleted.
+</ResponseField>
+
+### Examples
+
+<CodeGroup>
+
+```bash cURL — Full verification
+curl https://getimmutable.dev/api/v1/verify \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+```bash cURL — Date range
+curl "https://getimmutable.dev/api/v1/verify?since=2026-03-01T00:00:00Z&until=2026-03-31T23:59:59Z" \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+</CodeGroup>
+
+<Note>
+  Legacy events ingested before hash chain activation have nullable hash fields. These events are skipped during verification and do not produce breaks.
+</Note>

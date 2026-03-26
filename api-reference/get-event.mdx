@@ -1,0 +1,87 @@
+---
+title: Get Event
+description: Retrieve a single event by ID with its integrity proof.
+---
+
+## GET /api/v1/events/{id}
+
+Retrieve a single event by its UUID. The response includes the full event data and the `integrity` block containing the event's hash and its link to the previous event.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The UUID of the event.
+</ParamField>
+
+### Response
+
+```json
+{
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "actor_id": "user_2hG9kLm",
+  "actor_name": "Sarah Chen",
+  "actor_type": "user",
+  "action": "document.created",
+  "action_category": "documents",
+  "resource_id": "doc_8nXpQr3",
+  "resource_name": "Q4 Financial Report",
+  "resource": "document",
+  "metadata": {
+    "folder": "reports",
+    "template": "quarterly"
+  },
+  "targets": [
+    { "type": "folder", "id": "folder_3mK9pLq", "name": "Shared Reports" }
+  ],
+  "occurred_at": "2026-03-15T14:32:18.847312Z",
+  "session_id": "sess_4kN8pLm",
+  "tenant_id": "org_7rT2xBc",
+  "ip_address": "203.0.113.42",
+  "ip_country": "US",
+  "ip_city": "San Francisco",
+  "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)...",
+  "integrity": {
+    "event_hash": "a3f2c8d1e4b567890abcdef1234567890abcdef1234567890abcdef12345678",
+    "previous_event_hash": "7b9e1d3f5a2c67890abcdef1234567890abcdef1234567890abcdef12345678"
+  },
+  "created_at": "2026-03-15T14:32:18.847312Z"
+}
+```
+
+### Examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://getimmutable.dev/api/v1/events/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+```typescript JavaScript
+const event = await immutable.events.get("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d");
+
+console.log(event.integrity.event_hash);
+console.log(event.integrity.previous_event_hash);
+```
+
+</CodeGroup>
+
+### Integrity Block
+
+Every event includes an `integrity` object:
+
+<ResponseField name="integrity.event_hash" type="string">
+  SHA-256 hash of this event's data combined with the previous event hash.
+</ResponseField>
+
+<ResponseField name="integrity.previous_event_hash" type="string | null">
+  SHA-256 hash of the preceding event in the workspace chain. `null` for the first event.
+</ResponseField>
+
+See [Hash Chain](/guides/hash-chain) for details on how hashes are computed.
+
+### Errors
+
+| Status | Description                              |
+| ------ | ---------------------------------------- |
+| `404`  | Event not found or outside retention window. |

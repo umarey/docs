@@ -1,33 +1,104 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: API Reference
+description: Complete reference for the Immutable REST API.
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+## Base URL
 
-## Welcome
+```
+https://getimmutable.dev/api/v1
+```
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
-
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+All endpoints are prefixed with `/api/v1`.
 
 ## Authentication
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+Include your API key as a Bearer token in the `Authorization` header:
+
+```bash
+Authorization: Bearer imk_your_api_key_here
+```
+
+See [Authentication](/authentication) for details on key management and IP allowlisting.
+
+## Request Format
+
+- All request bodies must be JSON with `Content-Type: application/json`.
+- All timestamps use ISO 8601 format with optional microsecond precision.
+
+## Response Format
+
+Successful responses return JSON. Event ingestion endpoints return `202 Accepted` to indicate asynchronous processing.
 
 ```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
+{
+  "status": "queued",
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+}
 ```
+
+## Errors
+
+Error responses follow a consistent format:
+
+```json
+{
+  "error": "validation_failed",
+  "message": "The actor_id field is required."
+}
+```
+
+| Status | Meaning                                          |
+| ------ | ------------------------------------------------ |
+| `400`  | Bad request -- malformed JSON or invalid params. |
+| `401`  | Unauthenticated -- missing or invalid API key.   |
+| `403`  | Forbidden -- IP not in allowlist or insufficient permissions. |
+| `404`  | Not found -- resource does not exist.            |
+| `422`  | Validation failed -- check the `message` field.  |
+| `429`  | Rate limited -- slow down and retry.             |
+| `500`  | Server error -- contact support.                 |
+
+## Rate Limits
+
+API requests are rate limited per workspace. Current limits:
+
+| Plan       | Requests / Minute |
+| ---------- | ----------------- |
+| Free       | 60                |
+| Starter    | 300               |
+| Pro        | 1,000             |
+| Enterprise | Custom            |
+
+When rate limited, the response includes a `Retry-After` header.
+
+## Cursor Pagination
+
+List endpoints use cursor-based pagination for efficient traversal of large datasets.
+
+<ResponseField name="data" type="array">
+  Array of results for the current page.
+</ResponseField>
+
+<ResponseField name="has_more" type="boolean">
+  Whether more results exist beyond this page.
+</ResponseField>
+
+<ResponseField name="next_cursor" type="string">
+  URL-safe base64 cursor to pass as the `cursor` query parameter for the next page. Only present when `has_more` is `true`.
+</ResponseField>
+
+### Example
+
+```bash
+# First page
+GET /api/v1/events?per_page=25
+
+# Next page
+GET /api/v1/events?per_page=25&cursor=eyJjcmVhdGVkX2F0Ijoi...
+```
+
+Cursors encode microsecond-precision timestamps for stable pagination even during high-throughput ingestion.
+
+## Async Responses
+
+Event ingestion endpoints (`POST /api/v1/events` and `POST /api/v1/events/batch`) return `202 Accepted`. The event ID is pre-generated and returned immediately while processing happens asynchronously via a background queue.

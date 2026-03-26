@@ -1,0 +1,69 @@
+---
+title: Exports
+description: Generate filtered CSV exports of your audit log data.
+---
+
+## Overview
+
+Export your audit log events as CSV files. Exports are processed in the background and produce a signed download URL that expires after 7 days.
+
+## Creating an Export
+
+Send a `POST` request to create an export with optional filters:
+
+```bash
+curl -X POST https://getimmutable.dev/api/v1/exports \
+  -H "Authorization: Bearer imk_your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "actor_id": "user_2hG9kLm",
+    "action": "document.*",
+    "since": "2026-03-01T00:00:00Z",
+    "until": "2026-03-31T23:59:59Z"
+  }'
+```
+
+The response includes the export ID and a `pending` status:
+
+```json
+{
+  "id": "exp_9c2f4a7b-1d3e-4f5a-8b6c-7d8e9f0a1b2c",
+  "status": "pending",
+  "created_at": "2026-03-26T10:15:00Z"
+}
+```
+
+## Export Lifecycle
+
+| Status       | Description                             |
+| ------------ | --------------------------------------- |
+| `pending`    | Export is queued for processing.        |
+| `processing` | Export is being generated.              |
+| `completed`  | Export is ready for download.           |
+| `failed`     | Export generation failed.               |
+
+Poll the [get export](/api-reference/get-export) endpoint to check status.
+
+## Downloading
+
+Once completed, request the download URL:
+
+```bash
+curl https://getimmutable.dev/api/v1/exports/exp_9c2f4a7b.../download \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+This redirects to a signed URL. Download links expire after **7 days**.
+
+<Warning>
+  If your workspace has [retention policies](/guides/retention) enabled, archived events older than your retention window are not included in exports. The export dialog shows a warning when this applies.
+</Warning>
+
+## Quotas
+
+| Plan       | Monthly Exports |
+| ---------- | --------------- |
+| Free       | 3               |
+| Starter    | 20              |
+| Pro        | 100             |
+| Enterprise | Unlimited       |
