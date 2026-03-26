@@ -60,7 +60,8 @@ AuditLog::track('document.created', 'document', [
 ```php
 use GetImmutable\AuditLog;
 
-AuditLog::idempotencyKey('unique_key_123')
+AuditLog::actor($user)
+    ->idempotencyKey('unique_key_123')
     ->version(1)
     ->session('sess_4kN8pLm')
     ->actionCategory('documents')
@@ -69,6 +70,12 @@ AuditLog::idempotencyKey('unique_key_123')
     ->track('document.created', 'document', [
         'folder' => 'reports',
         'template' => 'quarterly',
+    ]);
+
+// Or use the currently authenticated user
+AuditLog::fromAuth()
+    ->track('document.created', $document, [
+        'folder' => 'reports',
     ]);
 ```
 
@@ -204,39 +211,25 @@ class DocumentObserver
 {
     public function created(Document $document): void
     {
-        AuditLog::track('document.created', 'document', [
-            'actor_id' => auth()->id(),
-            'actor_name' => auth()->user()?->name,
-            'resource_id' => $document->id,
-            'resource_name' => $document->title,
-            'metadata' => [
+        AuditLog::fromAuth()
+            ->track('document.created', $document, [
                 'size' => $document->size,
                 'mime_type' => $document->mime_type,
-            ],
-        ]);
+            ]);
     }
 
     public function updated(Document $document): void
     {
-        AuditLog::track('document.updated', 'document', [
-            'actor_id' => auth()->id(),
-            'actor_name' => auth()->user()?->name,
-            'resource_id' => $document->id,
-            'resource_name' => $document->title,
-            'metadata' => [
+        AuditLog::fromAuth()
+            ->track('document.updated', $document, [
                 'changed_fields' => array_keys($document->getDirty()),
-            ],
-        ]);
+            ]);
     }
 
     public function deleted(Document $document): void
     {
-        AuditLog::track('document.deleted', 'document', [
-            'actor_id' => auth()->id(),
-            'actor_name' => auth()->user()?->name,
-            'resource_id' => $document->id,
-            'resource_name' => $document->title,
-        ]);
+        AuditLog::fromAuth()
+            ->track('document.deleted', $document);
     }
 }
 ```

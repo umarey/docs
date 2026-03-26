@@ -147,13 +147,11 @@ const result = await client.track({
 ```php Laravel
 use GetImmutable\AuditLog;
 
-AuditLog::session('sess_4kN8pLm')
+AuditLog::actor(['id' => 'user_2hG9kLm', 'name' => 'Sarah Chen'])
+    ->session('sess_4kN8pLm')
     ->actionCategory('documents')
     ->target('folder', 'folder_3mK9pLq', 'Shared Reports')
     ->track('document.created', 'document', [
-        'actor_id' => 'user_2hG9kLm',
-        'actor_name' => 'Sarah Chen',
-        'actor_type' => 'user',
         'resource_id' => 'doc_8nXpQr3',
         'resource_name' => 'Q4 Financial Report',
         'tenant_id' => 'org_7rT2xBc',

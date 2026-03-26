@@ -100,15 +100,17 @@ await new PendingEvent(client, { id: "user_2hG9kLm" })
 ```php Laravel
 use GetImmutable\AuditLog;
 
-AuditLog::target('folder', 'folder_3mK9pLq', 'Shared Reports')
+AuditLog::fromAuth()
+    ->target('folder', 'folder_3mK9pLq', 'Shared Reports')
     ->target('team', 'team_5bR7cNx', 'Engineering')
     ->track('document.shared', 'document');
 
 // Or with multiple targets
-AuditLog::targets([
-    ['type' => 'folder', 'id' => 'folder_3mK9pLq', 'name' => 'Shared Reports'],
-    ['type' => 'team', 'id' => 'team_5bR7cNx', 'name' => 'Engineering'],
-])->track('document.shared', 'document');
+AuditLog::fromAuth()
+    ->targets([
+        ['type' => 'folder', 'id' => 'folder_3mK9pLq', 'name' => 'Shared Reports'],
+        ['type' => 'team', 'id' => 'team_5bR7cNx', 'name' => 'Engineering'],
+    ])->track('document.shared', 'document');
 ```
 
 </CodeGroup>

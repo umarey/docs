@@ -42,7 +42,8 @@ await new PendingEvent(client, { id: "user_2hG9kLm" })
 ```php Laravel
 use GetImmutable\AuditLog;
 
-AuditLog::session('sess_4kN8pLm')
+AuditLog::fromAuth()
+    ->session('sess_4kN8pLm')
     ->track('document.viewed', 'document');
 ```
 
