@@ -62,14 +62,24 @@
               "guides/migrating"
             ]
           },
+        ]
+      },
+      {
+        "tab": "Use Cases",
+        "groups": [
           {
-            "group": "Use Cases",
+            "group": "Industry",
             "pages": [
               "use-cases/saas-activity-logs",
               "use-cases/fintech-audit-trail",
               "use-cases/healthcare-compliance",
               "use-cases/ecommerce-orders",
-              "use-cases/devops-changes",
+              "use-cases/devops-changes"
+            ]
+          },
+          {
+            "group": "Patterns",
+            "pages": [
               "use-cases/suspicious-login-detection",
               "use-cases/multi-tenant-activity-feed",
               "use-cases/session-debugging"
