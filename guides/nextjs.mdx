@@ -17,7 +17,7 @@ Audit log tracking must be done **server-side** because your API key should neve
 Install the SDK:
 
 ```bash
-npm install @getimmutable/sdk
+npm install getimmutable
 ```
 
 Add your credentials to `.env.local`:
@@ -31,7 +31,7 @@ Create a shared client instance:
 
 ```typescript
 // lib/immutable.ts
-import { ImmutableClient } from "@getimmutable/sdk";
+import { ImmutableClient } from "getimmutable";
 
 export const immutable = new ImmutableClient({
   apiKey: process.env.GETIMMUTABLE_API_KEY!,
@@ -48,7 +48,7 @@ Track user actions in Server Actions:
 "use server";
 
 import { immutable } from "@/lib/immutable";
-import { PendingEvent } from "@getimmutable/sdk";
+import { PendingEvent } from "getimmutable";
 import { auth } from "@/lib/auth";
 
 export async function createDocument(formData: FormData) {

@@ -9,15 +9,15 @@ icon: js
 <CodeGroup>
 
 ```bash npm
-npm install @getimmutable/sdk
+npm install getimmutable
 ```
 
 ```bash yarn
-yarn add @getimmutable/sdk
+yarn add getimmutable
 ```
 
 ```bash pnpm
-pnpm add @getimmutable/sdk
+pnpm add getimmutable
 ```
 
 </CodeGroup>
@@ -27,7 +27,7 @@ pnpm add @getimmutable/sdk
 ## Setup
 
 ```typescript
-import { ImmutableClient } from "@getimmutable/sdk";
+import { ImmutableClient } from "getimmutable";
 
 const client = new ImmutableClient({
   apiKey: "imk_your_api_key_here",
@@ -74,7 +74,7 @@ console.log(result.status); // "queued"
 The `PendingEvent` class provides a chainable API:
 
 ```typescript
-import { ImmutableClient, PendingEvent } from "@getimmutable/sdk";
+import { ImmutableClient, PendingEvent } from "getimmutable";
 
 const client = new ImmutableClient({
   apiKey: "imk_your_api_key_here",
@@ -230,7 +230,7 @@ console.log(status.data.status); // "pending" | "processing" | "completed" | "fa
 The SDK throws `ImmutableError` for API failures:
 
 ```typescript
-import { ImmutableClient } from "@getimmutable/sdk";
+import { ImmutableClient } from "getimmutable";
 
 try {
   await client.track({ action: "document.created" }); // missing actor_id
@@ -246,5 +246,5 @@ try {
 The SDK is written in TypeScript with strict mode. All request payloads and response types are fully typed.
 
 ```typescript
-import type { Event, TrackPayload, PaginatedResponse } from "@getimmutable/sdk";
+import type { Event, TrackPayload, PaginatedResponse } from "getimmutable";
 ```
