@@ -1,0 +1,457 @@
+---
+title: DevOps & Infrastructure Changes
+description: Track deployments, config changes, secret rotations, and incidents with alert rules and SIEM integration via log streams.
+icon: server
+---
+
+Infrastructure and DevOps teams need an immutable record of every change made to production systems. When an incident occurs at 3 AM, the first question is always "what changed?" Immutable gives you a searchable, tamper-evident timeline of every deployment, configuration change, and secret rotation — with automated alerts for anomalous patterns and real-time forwarding to your SIEM.
+
+## Tracking Infrastructure Events
+
+### Deployment Started
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    import { ImmutableClient } from "getimmutable";
+
+    const client = new ImmutableClient({
+      apiKey: "imk_sk_a1b2c3d4e5f6g7h8i9j0",
+      baseUrl: "https://getimmutable.dev",
+    });
+
+    await client
+      .actor("ci_github_actions", { name: "GitHub Actions", type: "ci_system" })
+      .track("deployment.started", "service", {
+        service: "api-gateway",
+        environment: "production",
+        region: "us-east-1",
+        git_sha: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
+        git_branch: "main",
+        git_tag: "v2.14.0",
+        pr_number: 1847,
+        deployer: "deploy-bot",
+        previous_version: "v2.13.2",
+        rollback_sha: "f0e9d8c7b6a5948372615a4b3c2d1e0f9a8b7c6d",
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from getimmutable import ImmutableClient
+
+    client = ImmutableClient(
+        api_key="imk_sk_a1b2c3d4e5f6g7h8i9j0",
+        base_url="https://getimmutable.dev"
+    )
+
+    client.actor("ci_github_actions", name="GitHub Actions", type="ci_system") \
+        .track("deployment.started", "service", {
+            "service": "api-gateway",
+            "environment": "production",
+            "region": "us-east-1",
+            "git_sha": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
+            "git_branch": "main",
+            "git_tag": "v2.14.0",
+            "pr_number": 1847,
+            "deployer": "deploy-bot",
+            "previous_version": "v2.13.2",
+            "rollback_sha": "f0e9d8c7b6a5948372615a4b3c2d1e0f9a8b7c6d",
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "ci_github_actions",
+        "actor_name": "GitHub Actions",
+        "actor_type": "ci_system",
+        "action": "deployment.started",
+        "resource": "service",
+        "resource_id": "api-gateway",
+        "resource_name": "API Gateway",
+        "metadata": {
+          "environment": "production",
+          "region": "us-east-1",
+          "git_sha": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
+          "git_branch": "main",
+          "git_tag": "v2.14.0",
+          "pr_number": 1847,
+          "deployer": "deploy-bot",
+          "previous_version": "v2.13.2",
+          "rollback_sha": "f0e9d8c7b6a5948372615a4b3c2d1e0f9a8b7c6d"
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+### Configuration Changed
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    await client
+      .actor("eng_k4m8p2", { name: "Priya Sharma", type: "engineer" })
+      .session("sess_b2c3d4e5")
+      .track("config.changed", "service", {
+        service: "api-gateway",
+        environment: "production",
+        config_key: "rate_limit.requests_per_minute",
+        old_value: "1000",
+        new_value: "2000",
+        change_reason: "Scaling for product launch traffic",
+        jira_ticket: "OPS-2847",
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.actor("eng_k4m8p2", name="Priya Sharma", type="engineer") \
+        .session("sess_b2c3d4e5") \
+        .track("config.changed", "service", {
+            "service": "api-gateway",
+            "environment": "production",
+            "config_key": "rate_limit.requests_per_minute",
+            "old_value": "1000",
+            "new_value": "2000",
+            "change_reason": "Scaling for product launch traffic",
+            "jira_ticket": "OPS-2847",
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "eng_k4m8p2",
+        "actor_name": "Priya Sharma",
+        "actor_type": "engineer",
+        "session_id": "sess_b2c3d4e5",
+        "action": "config.changed",
+        "resource": "service",
+        "resource_id": "api-gateway",
+        "resource_name": "API Gateway",
+        "metadata": {
+          "environment": "production",
+          "config_key": "rate_limit.requests_per_minute",
+          "old_value": "1000",
+          "new_value": "2000",
+          "change_reason": "Scaling for product launch traffic",
+          "jira_ticket": "OPS-2847"
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+### Secret Rotated
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    await client
+      .actor("system_vault", { name: "HashiCorp Vault", type: "secret_manager" })
+      .track("secret.rotated", "secret", {
+        secret_path: "production/database/primary",
+        secret_type: "database_credential",
+        rotation_reason: "scheduled_90day",
+        previous_version: 14,
+        new_version: 15,
+        affected_services: ["api-gateway", "worker-service", "admin-panel"],
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.actor("system_vault", name="HashiCorp Vault", type="secret_manager") \
+        .track("secret.rotated", "secret", {
+            "secret_path": "production/database/primary",
+            "secret_type": "database_credential",
+            "rotation_reason": "scheduled_90day",
+            "previous_version": 14,
+            "new_version": 15,
+            "affected_services": ["api-gateway", "worker-service", "admin-panel"],
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "system_vault",
+        "actor_name": "HashiCorp Vault",
+        "actor_type": "secret_manager",
+        "action": "secret.rotated",
+        "resource": "secret",
+        "resource_id": "production/database/primary",
+        "metadata": {
+          "secret_type": "database_credential",
+          "rotation_reason": "scheduled_90day",
+          "previous_version": 14,
+          "new_version": 15,
+          "affected_services": ["api-gateway", "worker-service", "admin-panel"]
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Never include actual secret values in audit log metadata. Track the rotation event, version numbers, and affected services — not the credentials themselves.
+</Warning>
+
+### Incident Created and Rollback Executed
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    // Incident created
+    await client
+      .actor("system_pagerduty", { name: "PagerDuty", type: "alerting" })
+      .track("incident.created", "incident", {
+        incident_id: "inc_8f3a2c1d",
+        severity: "critical",
+        title: "API latency spike — p99 > 5s",
+        affected_services: ["api-gateway"],
+        triggered_by: "datadog_monitor_29481",
+        on_call: "eng_k4m8p2",
+      });
+
+    // Rollback executed
+    await client
+      .actor("eng_k4m8p2", { name: "Priya Sharma", type: "engineer" })
+      .session("sess_f8a9b0c1")
+      .track("deployment.rollback", "service", {
+        service: "api-gateway",
+        environment: "production",
+        rolled_back_from: "v2.14.0",
+        rolled_back_to: "v2.13.2",
+        rollback_sha: "f0e9d8c7b6a5948372615a4b3c2d1e0f9a8b7c6d",
+        incident_id: "inc_8f3a2c1d",
+        rollback_reason: "Memory leak in new connection pooling code",
+        downtime_minutes: 12,
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    # Incident created
+    client.actor("system_pagerduty", name="PagerDuty", type="alerting") \
+        .track("incident.created", "incident", {
+            "incident_id": "inc_8f3a2c1d",
+            "severity": "critical",
+            "title": "API latency spike — p99 > 5s",
+            "affected_services": ["api-gateway"],
+            "triggered_by": "datadog_monitor_29481",
+            "on_call": "eng_k4m8p2",
+        })
+
+    # Rollback executed
+    client.actor("eng_k4m8p2", name="Priya Sharma", type="engineer") \
+        .session("sess_f8a9b0c1") \
+        .track("deployment.rollback", "service", {
+            "service": "api-gateway",
+            "environment": "production",
+            "rolled_back_from": "v2.14.0",
+            "rolled_back_to": "v2.13.2",
+            "rollback_sha": "f0e9d8c7b6a5948372615a4b3c2d1e0f9a8b7c6d",
+            "incident_id": "inc_8f3a2c1d",
+            "rollback_reason": "Memory leak in new connection pooling code",
+            "downtime_minutes": 12,
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    # Incident created
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "system_pagerduty",
+        "actor_name": "PagerDuty",
+        "actor_type": "alerting",
+        "action": "incident.created",
+        "resource": "incident",
+        "resource_id": "inc_8f3a2c1d",
+        "metadata": {
+          "severity": "critical",
+          "title": "API latency spike — p99 > 5s",
+          "affected_services": ["api-gateway"],
+          "triggered_by": "datadog_monitor_29481",
+          "on_call": "eng_k4m8p2"
+        }
+      }'
+
+    # Rollback executed
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "eng_k4m8p2",
+        "actor_name": "Priya Sharma",
+        "actor_type": "engineer",
+        "session_id": "sess_f8a9b0c1",
+        "action": "deployment.rollback",
+        "resource": "service",
+        "resource_id": "api-gateway",
+        "resource_name": "API Gateway",
+        "metadata": {
+          "environment": "production",
+          "rolled_back_from": "v2.14.0",
+          "rolled_back_to": "v2.13.2",
+          "rollback_sha": "f0e9d8c7b6a5948372615a4b3c2d1e0f9a8b7c6d",
+          "incident_id": "inc_8f3a2c1d",
+          "rollback_reason": "Memory leak in new connection pooling code",
+          "downtime_minutes": 12
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## Alert Rules for Anomalous Activity
+
+### Ingestion Spike — Mass Deployments
+
+Detect unusual bursts of deployment events that might indicate a runaway CI/CD pipeline:
+
+```json
+{
+  "name": "Deployment Spike Detection",
+  "rule_type": "ingestion_spike",
+  "conditions": {
+    "action_pattern": "deployment.*",
+    "threshold_multiplier": 3
+  },
+  "channels": ["webhook"]
+}
+```
+
+### Repeated Destructive Actions
+
+Alert when the same actor performs many destructive operations in a short window:
+
+```json
+{
+  "name": "Mass Config Changes",
+  "rule_type": "repeated_action",
+  "conditions": {
+    "action_pattern": "config.changed",
+    "threshold": 10,
+    "window_minutes": 5
+  },
+  "channels": ["email", "webhook"]
+}
+```
+
+<Tip>
+  Set the `repeated_action` threshold based on your normal change frequency. A threshold of 10 config changes in 5 minutes catches runaway automation while allowing normal bulk updates.
+</Tip>
+
+## SIEM Integration via Log Streams
+
+Forward all infrastructure events to your SIEM (Splunk, Datadog, Elastic) in real-time using log streams. Configure an HTTPS webhook destination that points to your SIEM's ingestion endpoint.
+
+### HTTPS Webhook to Splunk HEC
+
+```json
+{
+  "name": "Splunk SIEM Feed",
+  "destination_type": "https",
+  "config": {
+    "url": "https://splunk.yourcompany.com:8088/services/collector/event",
+    "headers": {
+      "Authorization": "Splunk your-hec-token-here"
+    }
+  }
+}
+```
+
+### S3-Compatible Destination for Long-Term Storage
+
+```json
+{
+  "name": "S3 Audit Archive",
+  "destination_type": "s3",
+  "config": {
+    "bucket": "audit-logs-archive",
+    "region": "us-east-1",
+    "prefix": "immutable/infrastructure/",
+    "access_key_id": "AKIAIOSFODNN7EXAMPLE",
+    "secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  }
+}
+```
+
+Every event forwarded via HTTPS webhook includes an HMAC signature in the `X-Immutable-Signature` header, allowing your SIEM to verify the payload's authenticity.
+
+<Note>
+  Log streams automatically pause after 3 consecutive delivery failures and enter an error state. Monitor your stream status in the dashboard and fix connectivity issues promptly.
+</Note>
+
+## Investigating an Incident
+
+When something breaks, query recent changes to the affected service:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    const events = await client.getEvents({
+      resource_id: "api-gateway",
+      limit: 20,
+    });
+
+    console.log("Recent changes to api-gateway:");
+    events.data.forEach((event) => {
+      console.log(
+        `  ${event.occurred_at} | ${event.actor_name} | ${event.action} | ` +
+        `${JSON.stringify(event.metadata)}`
+      );
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    events = client.get_events(resource_id="api-gateway", limit=20)
+
+    print("Recent changes to api-gateway:")
+    for event in events["data"]:
+        print(
+            f"  {event['occurred_at']} | {event['actor_name']} | {event['action']} | "
+            f"{event['metadata']}"
+        )
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl "https://getimmutable.dev/api/v1/events?resource_id=api-gateway&limit=20" \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0"
+    ```
+  </Tab>
+</Tabs>
+
+## What's Next
+
+<CardGroup cols={2}>
+  <Card title="Log Streams" icon="arrow-right-arrow-left" href="/platform/log-streams">
+    Full guide to configuring HTTPS and S3 log stream destinations.
+  </Card>
+  <Card title="Alert Rules" icon="bell" href="/platform/alert-rules">
+    Set up ingestion spike and repeated action alerts.
+  </Card>
+  <Card title="SIEM Integration" icon="shield" href="/guides/siem-integration">
+    Detailed guide to connecting Immutable with your SIEM.
+  </Card>
+  <Card title="Webhook Signatures" icon="key" href="/security/webhook-signatures">
+    Verify the authenticity of log stream payloads.
+  </Card>
+</CardGroup>

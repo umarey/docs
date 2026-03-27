@@ -1,0 +1,534 @@
+---
+title: E-commerce Order Lifecycle
+description: Track every step of an order from placement to delivery, with batch ingestion for bulk updates and CSV exports for reconciliation.
+icon: cart-shopping
+---
+
+E-commerce platforms need a complete audit trail of every order action — from the moment a customer clicks "Place Order" through shipping, delivery, and potential returns. Immutable tracks the full lifecycle with multi-resource targets, supports batch ingestion for bulk status updates from fulfillment systems, and provides CSV exports for monthly financial reconciliation.
+
+## Tracking the Order Lifecycle
+
+### Order Placed
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    import { ImmutableClient } from "getimmutable";
+
+    const client = new ImmutableClient({
+      apiKey: "imk_sk_a1b2c3d4e5f6g7h8i9j0",
+      baseUrl: "https://getimmutable.dev",
+    });
+
+    await client
+      .actor("cust_2f8a3b", { name: "Rachel Kim", type: "customer" })
+      .session("sess_d4e5f6a7")
+      .track("order.placed", "order", {
+        order_id: "ord_9c3f2a1d",
+        subtotal: 8997,
+        tax: 742,
+        shipping: 599,
+        total: 10338,
+        currency: "USD",
+        item_count: 3,
+        targets: [
+          { type: "order", id: "ord_9c3f2a1d" },
+          { type: "item", id: "sku_wireless_earbuds", name: "Wireless Earbuds Pro" },
+          { type: "item", id: "sku_phone_case", name: "Titanium Phone Case" },
+          { type: "item", id: "sku_charging_cable", name: "USB-C Fast Charge Cable" },
+          { type: "customer", id: "cust_2f8a3b", name: "Rachel Kim" },
+        ],
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from getimmutable import ImmutableClient
+
+    client = ImmutableClient(
+        api_key="imk_sk_a1b2c3d4e5f6g7h8i9j0",
+        base_url="https://getimmutable.dev"
+    )
+
+    client.actor("cust_2f8a3b", name="Rachel Kim", type="customer") \
+        .session("sess_d4e5f6a7") \
+        .track("order.placed", "order", {
+            "order_id": "ord_9c3f2a1d",
+            "subtotal": 8997,
+            "tax": 742,
+            "shipping": 599,
+            "total": 10338,
+            "currency": "USD",
+            "item_count": 3,
+            "targets": [
+                {"type": "order", "id": "ord_9c3f2a1d"},
+                {"type": "item", "id": "sku_wireless_earbuds", "name": "Wireless Earbuds Pro"},
+                {"type": "item", "id": "sku_phone_case", "name": "Titanium Phone Case"},
+                {"type": "item", "id": "sku_charging_cable", "name": "USB-C Fast Charge Cable"},
+                {"type": "customer", "id": "cust_2f8a3b", "name": "Rachel Kim"},
+            ],
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "cust_2f8a3b",
+        "actor_name": "Rachel Kim",
+        "actor_type": "customer",
+        "session_id": "sess_d4e5f6a7",
+        "action": "order.placed",
+        "resource": "order",
+        "resource_id": "ord_9c3f2a1d",
+        "metadata": {
+          "subtotal": 8997,
+          "tax": 742,
+          "shipping": 599,
+          "total": 10338,
+          "currency": "USD",
+          "item_count": 3
+        },
+        "targets": [
+          {"type": "order", "id": "ord_9c3f2a1d"},
+          {"type": "item", "id": "sku_wireless_earbuds", "name": "Wireless Earbuds Pro"},
+          {"type": "item", "id": "sku_phone_case", "name": "Titanium Phone Case"},
+          {"type": "item", "id": "sku_charging_cable", "name": "USB-C Fast Charge Cable"},
+          {"type": "customer", "id": "cust_2f8a3b", "name": "Rachel Kim"}
+        ]
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+### Payment Captured
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    await client
+      .actor("system_checkout", { name: "Checkout Service", type: "system" })
+      .track("payment.captured", "order", {
+        order_id: "ord_9c3f2a1d",
+        amount: 10338,
+        currency: "USD",
+        payment_method: "card_visa_8821",
+        processor_ref: "pi_3Nk8sFAIC9x1y2z3",
+        fraud_score: 8,
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.actor("system_checkout", name="Checkout Service", type="system") \
+        .track("payment.captured", "order", {
+            "order_id": "ord_9c3f2a1d",
+            "amount": 10338,
+            "currency": "USD",
+            "payment_method": "card_visa_8821",
+            "processor_ref": "pi_3Nk8sFAIC9x1y2z3",
+            "fraud_score": 8,
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "system_checkout",
+        "actor_name": "Checkout Service",
+        "actor_type": "system",
+        "action": "payment.captured",
+        "resource": "order",
+        "resource_id": "ord_9c3f2a1d",
+        "metadata": {
+          "amount": 10338,
+          "currency": "USD",
+          "payment_method": "card_visa_8821",
+          "processor_ref": "pi_3Nk8sFAIC9x1y2z3",
+          "fraud_score": 8
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+### Items Shipped and Delivery Confirmed
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    // Items shipped from warehouse
+    await client
+      .actor("system_fulfillment", { name: "Fulfillment Center", type: "system" })
+      .track("order.shipped", "order", {
+        order_id: "ord_9c3f2a1d",
+        carrier: "UPS",
+        tracking_number: "1Z999AA10123456784",
+        warehouse: "warehouse_east_01",
+        estimated_delivery: "2026-03-30",
+      });
+
+    // Delivery confirmed
+    await client
+      .actor("system_logistics", { name: "Logistics Tracker", type: "system" })
+      .track("order.delivered", "order", {
+        order_id: "ord_9c3f2a1d",
+        carrier: "UPS",
+        tracking_number: "1Z999AA10123456784",
+        delivered_to: "front_door",
+        signature_required: false,
+        delivery_photo_url: "https://cdn.example.com/deliveries/ord_9c3f2a1d.jpg",
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    # Items shipped
+    client.actor("system_fulfillment", name="Fulfillment Center", type="system") \
+        .track("order.shipped", "order", {
+            "order_id": "ord_9c3f2a1d",
+            "carrier": "UPS",
+            "tracking_number": "1Z999AA10123456784",
+            "warehouse": "warehouse_east_01",
+            "estimated_delivery": "2026-03-30",
+        })
+
+    # Delivery confirmed
+    client.actor("system_logistics", name="Logistics Tracker", type="system") \
+        .track("order.delivered", "order", {
+            "order_id": "ord_9c3f2a1d",
+            "carrier": "UPS",
+            "tracking_number": "1Z999AA10123456784",
+            "delivered_to": "front_door",
+            "signature_required": False,
+            "delivery_photo_url": "https://cdn.example.com/deliveries/ord_9c3f2a1d.jpg",
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    # Items shipped
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "system_fulfillment",
+        "actor_name": "Fulfillment Center",
+        "actor_type": "system",
+        "action": "order.shipped",
+        "resource": "order",
+        "resource_id": "ord_9c3f2a1d",
+        "metadata": {
+          "carrier": "UPS",
+          "tracking_number": "1Z999AA10123456784",
+          "warehouse": "warehouse_east_01",
+          "estimated_delivery": "2026-03-30"
+        }
+      }'
+
+    # Delivery confirmed
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "system_logistics",
+        "actor_name": "Logistics Tracker",
+        "actor_type": "system",
+        "action": "order.delivered",
+        "resource": "order",
+        "resource_id": "ord_9c3f2a1d",
+        "metadata": {
+          "carrier": "UPS",
+          "tracking_number": "1Z999AA10123456784",
+          "delivered_to": "front_door",
+          "signature_required": false
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+### Return Requested and Refund Issued
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    // Customer requests return
+    await client
+      .actor("cust_2f8a3b", { name: "Rachel Kim", type: "customer" })
+      .session("sess_f7a8b9c0")
+      .track("return.requested", "order", {
+        order_id: "ord_9c3f2a1d",
+        return_id: "ret_5d7e8f9a",
+        items: [{ sku: "sku_phone_case", reason: "wrong_color", quantity: 1 }],
+        refund_amount: 2999,
+        currency: "USD",
+      });
+
+    // Support issues refund
+    await client
+      .actor("agent_p4r7s2", { name: "David Chen", type: "support_agent" })
+      .session("sess_c1d2e3f4")
+      .track("refund.issued", "order", {
+        order_id: "ord_9c3f2a1d",
+        return_id: "ret_5d7e8f9a",
+        refund_amount: 2999,
+        currency: "USD",
+        refund_method: "original_payment",
+        processor_ref: "re_3Nk8sFAIC9a1b2c3",
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    # Customer requests return
+    client.actor("cust_2f8a3b", name="Rachel Kim", type="customer") \
+        .session("sess_f7a8b9c0") \
+        .track("return.requested", "order", {
+            "order_id": "ord_9c3f2a1d",
+            "return_id": "ret_5d7e8f9a",
+            "items": [{"sku": "sku_phone_case", "reason": "wrong_color", "quantity": 1}],
+            "refund_amount": 2999,
+            "currency": "USD",
+        })
+
+    # Support issues refund
+    client.actor("agent_p4r7s2", name="David Chen", type="support_agent") \
+        .session("sess_c1d2e3f4") \
+        .track("refund.issued", "order", {
+            "order_id": "ord_9c3f2a1d",
+            "return_id": "ret_5d7e8f9a",
+            "refund_amount": 2999,
+            "currency": "USD",
+            "refund_method": "original_payment",
+            "processor_ref": "re_3Nk8sFAIC9a1b2c3",
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    # Return requested
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "cust_2f8a3b",
+        "actor_name": "Rachel Kim",
+        "actor_type": "customer",
+        "session_id": "sess_f7a8b9c0",
+        "action": "return.requested",
+        "resource": "order",
+        "resource_id": "ord_9c3f2a1d",
+        "metadata": {
+          "return_id": "ret_5d7e8f9a",
+          "items": [{"sku": "sku_phone_case", "reason": "wrong_color", "quantity": 1}],
+          "refund_amount": 2999,
+          "currency": "USD"
+        }
+      }'
+
+    # Refund issued
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "agent_p4r7s2",
+        "actor_name": "David Chen",
+        "actor_type": "support_agent",
+        "session_id": "sess_c1d2e3f4",
+        "action": "refund.issued",
+        "resource": "order",
+        "resource_id": "ord_9c3f2a1d",
+        "metadata": {
+          "return_id": "ret_5d7e8f9a",
+          "refund_amount": 2999,
+          "currency": "USD",
+          "refund_method": "original_payment",
+          "processor_ref": "re_3Nk8sFAIC9a1b2c3"
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## Batch Ingestion for Bulk Fulfillment Updates
+
+When your warehouse management system processes hundreds of orders at once, use batch ingestion to send up to 100 events in a single request:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    await client.trackBatch([
+      {
+        actor_id: "system_fulfillment",
+        actor_name: "Fulfillment Center",
+        actor_type: "system",
+        action: "order.shipped",
+        resource: "order",
+        resource_id: "ord_a1b2c3d4",
+        metadata: { carrier: "FedEx", tracking_number: "794644790132" },
+      },
+      {
+        actor_id: "system_fulfillment",
+        actor_name: "Fulfillment Center",
+        actor_type: "system",
+        action: "order.shipped",
+        resource: "order",
+        resource_id: "ord_e5f6g7h8",
+        metadata: { carrier: "USPS", tracking_number: "9400111899223100047529" },
+      },
+      {
+        actor_id: "system_fulfillment",
+        actor_name: "Fulfillment Center",
+        actor_type: "system",
+        action: "order.shipped",
+        resource: "order",
+        resource_id: "ord_i9j0k1l2",
+        metadata: { carrier: "UPS", tracking_number: "1Z999AA10123456785" },
+      },
+    ]);
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.track_batch([
+        {
+            "actor_id": "system_fulfillment",
+            "actor_name": "Fulfillment Center",
+            "actor_type": "system",
+            "action": "order.shipped",
+            "resource": "order",
+            "resource_id": "ord_a1b2c3d4",
+            "metadata": {"carrier": "FedEx", "tracking_number": "794644790132"},
+        },
+        {
+            "actor_id": "system_fulfillment",
+            "actor_name": "Fulfillment Center",
+            "actor_type": "system",
+            "action": "order.shipped",
+            "resource": "order",
+            "resource_id": "ord_e5f6g7h8",
+            "metadata": {"carrier": "USPS", "tracking_number": "9400111899223100047529"},
+        },
+        {
+            "actor_id": "system_fulfillment",
+            "actor_name": "Fulfillment Center",
+            "actor_type": "system",
+            "action": "order.shipped",
+            "resource": "order",
+            "resource_id": "ord_i9j0k1l2",
+            "metadata": {"carrier": "UPS", "tracking_number": "1Z999AA10123456785"},
+        },
+    ])
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events/batch \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "events": [
+          {
+            "actor_id": "system_fulfillment",
+            "actor_name": "Fulfillment Center",
+            "actor_type": "system",
+            "action": "order.shipped",
+            "resource": "order",
+            "resource_id": "ord_a1b2c3d4",
+            "metadata": {"carrier": "FedEx", "tracking_number": "794644790132"}
+          },
+          {
+            "actor_id": "system_fulfillment",
+            "actor_name": "Fulfillment Center",
+            "actor_type": "system",
+            "action": "order.shipped",
+            "resource": "order",
+            "resource_id": "ord_e5f6g7h8",
+            "metadata": {"carrier": "USPS", "tracking_number": "9400111899223100047529"}
+          },
+          {
+            "actor_id": "system_fulfillment",
+            "actor_name": "Fulfillment Center",
+            "actor_type": "system",
+            "action": "order.shipped",
+            "resource": "order",
+            "resource_id": "ord_i9j0k1l2",
+            "metadata": {"carrier": "UPS", "tracking_number": "1Z999AA10123456785"}
+          }
+        ]
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  The batch endpoint accepts up to 100 events per request. For large fulfillment runs, chunk your updates into batches of 100 and send them sequentially.
+</Tip>
+
+## CSV Export for Monthly Reconciliation
+
+Export all order-related events for a specific month to reconcile with your accounting system:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    const exportJob = await client.track({
+      action: "export.requested",
+      resource: "export",
+      metadata: {
+        filters: {
+          action: "order.*",
+          after: "2026-03-01T00:00:00Z",
+          before: "2026-04-01T00:00:00Z",
+        },
+      },
+    });
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    # Create the export
+    curl -X POST https://getimmutable.dev/api/v1/exports \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "filters": {
+          "action": "order.*",
+          "after": "2026-03-01T00:00:00Z",
+          "before": "2026-04-01T00:00:00Z"
+        }
+      }'
+
+    # Check export status (returns download URL when ready)
+    curl https://getimmutable.dev/api/v1/exports/exp_8f3a2c1d \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0"
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  Export download URLs are signed and expire after 7 days. Schedule monthly exports via a cron job and store the CSV files in your accounting system for permanent records.
+</Note>
+
+## What's Next
+
+<CardGroup cols={2}>
+  <Card title="Batch Events" icon="layer-group" href="/api-reference/batch-events">
+    API reference for the batch ingestion endpoint.
+  </Card>
+  <Card title="Exports" icon="file-export" href="/platform/exports">
+    Full guide to creating and downloading CSV exports.
+  </Card>
+  <Card title="Financial Audit Trail" icon="building-columns" href="/use-cases/fintech-audit-trail">
+    Deeper dive into financial compliance and hash verification.
+  </Card>
+  <Card title="Targets" icon="bullseye" href="/guides/targets">
+    Learn how targets link events to multiple resources.
+  </Card>
+</CardGroup>

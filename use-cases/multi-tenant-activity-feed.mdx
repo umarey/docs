@@ -1,0 +1,330 @@
+---
+title: Customer-Facing Activity Feed
+description: Expose audit logs to your customers using viewer tokens, tenant isolation, and embeddable components.
+icon: users
+---
+
+Multi-tenant SaaS applications often need to show customers their own activity history — who on their team did what and when. Immutable's viewer tokens let you securely expose a read-only, tenant-scoped view of the audit log without giving customers access to your API key or other tenants' data.
+
+## How It Works
+
+1. Your backend creates a **viewer token** scoped to a specific `tenant_id`
+2. The token is passed to your frontend
+3. Your frontend either embeds the Immutable viewer iframe or queries the public events endpoint directly
+4. The token expires after the configured TTL
+
+## Creating Viewer Tokens
+
+### Backend: Generate a Token
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    import { ImmutableClient } from "getimmutable";
+
+    const client = new ImmutableClient({
+      apiKey: "imk_sk_a1b2c3d4e5f6g7h8i9j0",
+      baseUrl: "https://getimmutable.dev",
+    });
+
+    // Scoped to the customer's organization
+    const token = await client.createViewerToken({
+      tenantId: "org_acme_corp",
+      ttl: 3600,
+    });
+
+    // Send token.viewer_token to your frontend
+    console.log(token.viewer_token);
+    // "vt_eyJhbGciOiJIUzI1NiIs..."
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from getimmutable import ImmutableClient
+
+    client = ImmutableClient(
+        api_key="imk_sk_a1b2c3d4e5f6g7h8i9j0",
+        base_url="https://getimmutable.dev"
+    )
+
+    token = client.create_viewer_token(tenant_id="org_acme_corp", ttl=3600)
+
+    # Send token["viewer_token"] to your frontend
+    print(token["viewer_token"])
+    ```
+  </Tab>
+  <Tab title="Laravel">
+    ```php
+    use GetImmutable\Laravel\Facades\AuditLog;
+
+    // In your controller, generate a token for the authenticated user's org
+    $token = AuditLog::createViewerToken([
+        'tenant_id' => $request->user()->organization_id,
+        'ttl' => 3600,
+    ]);
+
+    return response()->json(['viewer_token' => $token['viewer_token']]);
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/viewer-tokens \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{"tenant_id": "org_acme_corp", "ttl": 3600}'
+    ```
+  </Tab>
+</Tabs>
+
+### Scoping by Actor
+
+You can also scope a viewer token to a specific actor, so a user only sees their own activity:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    const token = await client.createViewerToken({
+      tenantId: "org_acme_corp",
+      actorId: "user_5a3c8f",
+      ttl: 3600,
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    token = client.create_viewer_token(
+        tenant_id="org_acme_corp",
+        actor_id="user_5a3c8f",
+        ttl=3600
+    )
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/viewer-tokens \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "tenant_id": "org_acme_corp",
+        "actor_id": "user_5a3c8f",
+        "ttl": 3600
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Viewer tokens are read-only and cannot be used to ingest events. They only grant access to events matching the scoped `tenant_id` (and optionally `actor_id`).
+</Warning>
+
+## Embedding the Viewer
+
+### Option 1: Iframe Embed
+
+The simplest integration — embed the Immutable viewer directly in your app:
+
+```html
+<iframe
+  src="https://getimmutable.dev/viewer?token=vt_eyJhbGciOiJIUzI1NiIs..."
+  width="100%"
+  height="600"
+  frameborder="0"
+  style="border-radius: 8px; border: 1px solid #e5e7eb;"
+></iframe>
+```
+
+### Option 2: React Component
+
+Build a custom activity feed by querying the public events endpoint with the viewer token:
+
+```jsx
+import { useState, useEffect } from "react";
+
+function ActivityFeed({ viewerToken }) {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchEvents() {
+      const response = await fetch(
+        "https://getimmutable.dev/api/v1/events?limit=50",
+        {
+          headers: {
+            Authorization: `Bearer ${viewerToken}`,
+          },
+        }
+      );
+      const data = await response.json();
+      setEvents(data.data);
+      setLoading(false);
+    }
+    fetchEvents();
+  }, [viewerToken]);
+
+  if (loading) {
+    return (
+      <div className="animate-pulse space-y-3">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="h-12 bg-gray-100 rounded" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-gray-100">
+      {events.map((event) => (
+        <div key={event.id} className="py-3 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-medium text-blue-700">
+            {event.actor_name?.charAt(0) || "?"}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-gray-900">
+              <span className="font-medium">{event.actor_name}</span>{" "}
+              {formatAction(event.action)}{" "}
+              <span className="font-medium">{event.resource_name}</span>
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {new Date(event.occurred_at).toLocaleString()}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatAction(action) {
+  return action.replace(/\./g, " ").replace(/_/g, " ");
+}
+```
+
+<Tip>
+  When building a custom activity feed, implement cursor-based pagination using the `cursor` parameter from the API response. This ensures you can load older events without missing any.
+</Tip>
+
+## TTL Management
+
+Choose a TTL that matches your use case:
+
+| Scenario | Recommended TTL | Reason |
+|---|---|---|
+| Dashboard page view | 3600 (1 hour) | Matches typical session length |
+| Embedded widget | 900 (15 minutes) | Short-lived, refresh on page load |
+| Customer portal | 28800 (8 hours) | Full work day access |
+| Single report view | 300 (5 minutes) | Minimal exposure |
+
+### Refreshing Tokens
+
+Create a backend endpoint that generates fresh tokens on demand:
+
+<Tabs>
+  <Tab title="JavaScript (Express)">
+    ```javascript
+    app.get("/api/activity-token", authenticate, async (req, res) => {
+      const token = await client.createViewerToken({
+        tenantId: req.user.organizationId,
+        ttl: 3600,
+      });
+      res.json({ token: token.viewer_token, expires_in: 3600 });
+    });
+    ```
+  </Tab>
+  <Tab title="Python (Flask)">
+    ```python
+    @app.route("/api/activity-token")
+    @login_required
+    def activity_token():
+        token = client.create_viewer_token(
+            tenant_id=current_user.organization_id,
+            ttl=3600
+        )
+        return jsonify({"token": token["viewer_token"], "expires_in": 3600})
+    ```
+  </Tab>
+  <Tab title="Laravel">
+    ```php
+    // routes/web.php
+    Route::get('/api/activity-token', function (Request $request) {
+        $token = AuditLog::createViewerToken([
+            'tenant_id' => $request->user()->organization_id,
+            'ttl' => 3600,
+        ]);
+
+        return response()->json([
+            'token' => $token['viewer_token'],
+            'expires_in' => 3600,
+        ]);
+    })->middleware('auth');
+    ```
+  </Tab>
+</Tabs>
+
+On the frontend, refresh the token before it expires:
+
+```javascript
+function useViewerToken() {
+  const [token, setToken] = useState(null);
+
+  useEffect(() => {
+    async function refresh() {
+      const res = await fetch("/api/activity-token");
+      const data = await res.json();
+      setToken(data.token);
+
+      // Refresh 60 seconds before expiry
+      const refreshMs = (data.expires_in - 60) * 1000;
+      setTimeout(refresh, refreshMs);
+    }
+    refresh();
+  }, []);
+
+  return token;
+}
+```
+
+## Querying Events with a Viewer Token
+
+Viewer tokens work with the same events API, but responses are automatically filtered to the token's scope:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    // Using the viewer token directly (no SDK needed on the frontend)
+    const response = await fetch(
+      "https://getimmutable.dev/api/v1/events?action=project.created&limit=10",
+      {
+        headers: { Authorization: "Bearer vt_eyJhbGciOiJIUzI1NiIs..." },
+      }
+    );
+    const events = await response.json();
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl "https://getimmutable.dev/api/v1/events?action=project.created&limit=10" \
+      -H "Authorization: Bearer vt_eyJhbGciOiJIUzI1NiIs..."
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  Even if a query doesn't include `tenant_id` as a filter, the viewer token enforces it. A viewer token scoped to `org_acme_corp` can never see events from other tenants.
+</Note>
+
+## What's Next
+
+<CardGroup cols={2}>
+  <Card title="Embeddable Viewer" icon="window" href="/guides/embeddable-viewer">
+    Full guide to the Immutable viewer widget.
+  </Card>
+  <Card title="Events API" icon="code" href="/api-reference/list-events">
+    API reference for querying events.
+  </Card>
+  <Card title="Viewer Token API" icon="key" href="/api-reference/viewer-token">
+    API reference for creating viewer tokens.
+  </Card>
+  <Card title="SaaS Activity Tracking" icon="list-check" href="/use-cases/saas-activity-logs">
+    End-to-end example of tracking user activity in a SaaS app.
+  </Card>
+</CardGroup>

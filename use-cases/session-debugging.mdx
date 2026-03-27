@@ -1,0 +1,272 @@
+---
+title: Debugging with Session Tracking
+description: Use session IDs to reconstruct exactly what happened during a user's session and resolve support tickets faster.
+icon: bug
+---
+
+A customer submits a support ticket: "My document disappeared and I didn't do anything!" Before session tracking, this would require hours of log spelunking across multiple systems. With Immutable's session tracking, you can reconstruct the exact sequence of events from the user's session in seconds.
+
+## The Scenario
+
+**Support ticket #4821:** "I was working on the Q3 Budget Report and it just vanished. I didn't delete it. Please recover it ASAP."
+
+Reporter: Lisa Wang (`user_4f2a8c`), submitted at 2026-03-27 10:15 AM.
+
+## Step 1: Find the User's Recent Sessions
+
+Query the user's recent events to identify session IDs:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    import { ImmutableClient } from "getimmutable";
+
+    const client = new ImmutableClient({
+      apiKey: "imk_sk_a1b2c3d4e5f6g7h8i9j0",
+      baseUrl: "https://getimmutable.dev",
+    });
+
+    const events = await client.getEvents({
+      actor_id: "user_4f2a8c",
+      limit: 50,
+    });
+
+    // Extract unique session IDs
+    const sessions = [...new Set(events.data.map((e) => e.session_id).filter(Boolean))];
+    console.log("Recent sessions:", sessions);
+    // ["sess_a8f3c2d1", "sess_7e4b9f2a", "sess_1c6d8e3f"]
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from getimmutable import ImmutableClient
+
+    client = ImmutableClient(
+        api_key="imk_sk_a1b2c3d4e5f6g7h8i9j0",
+        base_url="https://getimmutable.dev"
+    )
+
+    events = client.get_events(actor_id="user_4f2a8c", limit=50)
+
+    sessions = list(set(
+        e["session_id"] for e in events["data"] if e.get("session_id")
+    ))
+    print("Recent sessions:", sessions)
+    # ["sess_a8f3c2d1", "sess_7e4b9f2a", "sess_1c6d8e3f"]
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl "https://getimmutable.dev/api/v1/events?actor_id=user_4f2a8c&limit=50" \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0"
+    ```
+  </Tab>
+</Tabs>
+
+## Step 2: Query the Specific Session
+
+Filter events by the session that was active around the time of the incident:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    const sessionEvents = await client.getEvents({
+      session_id: "sess_a8f3c2d1",
+      limit: 100,
+    });
+
+    console.log(`Found ${sessionEvents.data.length} events in session sess_a8f3c2d1\n`);
+
+    sessionEvents.data.forEach((event) => {
+      console.log(
+        `${event.occurred_at} | ${event.action} | ${event.resource_name || event.resource_id}`
+      );
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    session_events = client.get_events(session_id="sess_a8f3c2d1", limit=100)
+
+    print(f"Found {len(session_events['data'])} events in session sess_a8f3c2d1\n")
+
+    for event in session_events["data"]:
+        print(
+            f"{event['occurred_at']} | {event['action']} | "
+            f"{event.get('resource_name') or event['resource_id']}"
+        )
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl "https://getimmutable.dev/api/v1/events?session_id=sess_a8f3c2d1&limit=100" \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0"
+    ```
+  </Tab>
+</Tabs>
+
+## Step 3: Read the Timeline
+
+The query returns the full session timeline:
+
+```
+2026-03-27T09:41:12.482910Z | auth.login               | Lisa Wang
+2026-03-27T09:41:38.129384Z | document.viewed           | Q3 Budget Report
+2026-03-27T09:43:15.847261Z | document.edited           | Q3 Budget Report
+2026-03-27T09:47:02.193847Z | document.saved            | Q3 Budget Report
+2026-03-27T09:52:44.628193Z | folder.viewed             | Finance Team
+2026-03-27T09:53:11.384726Z | document.moved_to_trash   | Q3 Budget Report
+2026-03-27T09:53:18.491028Z | trash.emptied             | Finance Team
+2026-03-27T09:55:31.728394Z | document.searched         | Q3 Budget Report
+```
+
+The answer is clear: Lisa viewed and edited the document, then navigated to the Finance Team folder, moved the document to trash at 09:53:11, and emptied the trash 7 seconds later at 09:53:18. When she searched for the document 2 minutes later, it was gone.
+
+<Note>
+  This is not a bug — it's user error. The session timeline provides clear evidence of the exact sequence of actions, eliminating guesswork and saving hours of investigation time.
+</Note>
+
+## Step 4: Examine the Specific Events
+
+Look at the metadata for the critical events to understand the full context:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    const trashEvents = sessionEvents.data.filter(
+      (e) => e.action === "document.moved_to_trash" || e.action === "trash.emptied"
+    );
+
+    trashEvents.forEach((event) => {
+      console.log(`\n--- ${event.action} ---`);
+      console.log(`Time: ${event.occurred_at}`);
+      console.log(`Resource: ${event.resource_name}`);
+      console.log(`IP: ${event.ip_address} (${event.ip_city}, ${event.ip_country})`);
+      console.log(`Metadata:`, JSON.stringify(event.metadata, null, 2));
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import json
+
+    trash_events = [
+        e for e in session_events["data"]
+        if e["action"] in ("document.moved_to_trash", "trash.emptied")
+    ]
+
+    for event in trash_events:
+        print(f"\n--- {event['action']} ---")
+        print(f"Time: {event['occurred_at']}")
+        print(f"Resource: {event.get('resource_name')}")
+        print(f"IP: {event['ip_address']} ({event['ip_city']}, {event['ip_country']})")
+        print(f"Metadata: {json.dumps(event['metadata'], indent=2)}")
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl "https://getimmutable.dev/api/v1/events?session_id=sess_a8f3c2d1&action=document.moved_to_trash&limit=10" \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0"
+    ```
+  </Tab>
+</Tabs>
+
+Output:
+
+```
+--- document.moved_to_trash ---
+Time: 2026-03-27T09:53:11.384726Z
+Resource: Q3 Budget Report
+IP: 198.51.100.42 (Portland, US)
+Metadata: {
+  "document_id": "doc_8f3a2c1d",
+  "source_folder": "folder_finance_team",
+  "file_size_bytes": 284729
+}
+
+--- trash.emptied ---
+Time: 2026-03-27T09:53:18.491028Z
+Resource: Finance Team
+IP: 198.51.100.42 (Portland, US)
+Metadata: {
+  "folder_id": "folder_finance_team",
+  "items_deleted": 3,
+  "total_size_bytes": 1847293
+}
+```
+
+## Step 5: Respond to the Customer
+
+With this evidence, you can provide a clear, factual response:
+
+> Hi Lisa, I investigated ticket #4821. Our audit logs show that during your session on March 27th at 9:53 AM, the Q3 Budget Report was moved to the trash from the Finance Team folder, and the trash was emptied 7 seconds later. Both actions came from your IP address in Portland. This appears to have been accidental. I've restored the document from our backup — you should see it in your Finance Team folder now.
+
+## Making Session Tracking Work
+
+For session debugging to be effective, you need consistent session IDs across all events. Here's how to set them up:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    // Generate a session ID when the user logs in
+    const sessionId = `sess_${crypto.randomUUID().split("-")[0]}`;
+
+    // Use the fluent builder to attach it to every event
+    const session = client
+      .actor(user.id, { name: user.name, type: "user" })
+      .session(sessionId);
+
+    // All events in this session share the same session ID
+    await session.track("document.viewed", "document", { document_id: "doc_8f3a2c1d" });
+    await session.track("document.edited", "document", { document_id: "doc_8f3a2c1d" });
+    await session.track("document.saved", "document", { document_id: "doc_8f3a2c1d" });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    import uuid
+
+    # Generate a session ID when the user logs in
+    session_id = f"sess_{uuid.uuid4().hex[:8]}"
+
+    # Use the fluent builder to attach it to every event
+    session = client.actor(user.id, name=user.name, type="user").session(session_id)
+
+    # All events in this session share the same session ID
+    session.track("document.viewed", "document", {"document_id": "doc_8f3a2c1d"})
+    session.track("document.edited", "document", {"document_id": "doc_8f3a2c1d"})
+    session.track("document.saved", "document", {"document_id": "doc_8f3a2c1d"})
+    ```
+  </Tab>
+  <Tab title="Laravel">
+    ```php
+    // In a middleware, set the session ID for all requests
+    AuditLog::fromAuth()
+        ->session(session()->getId())
+        ->track('document.viewed', $document, [
+            'document_id' => $document->id,
+        ]);
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  Use your application's existing session ID (from cookies or JWTs) as the Immutable session ID. This lets you correlate audit events with application logs and error tracking systems.
+</Tip>
+
+## What's Next
+
+<CardGroup cols={2}>
+  <Card title="Session Tracking" icon="route" href="/guides/session-tracking">
+    Full guide to implementing session tracking.
+  </Card>
+  <Card title="Debugging Sessions Guide" icon="magnifying-glass" href="/guides/debugging-sessions">
+    More debugging workflows and techniques.
+  </Card>
+  <Card title="Events API" icon="code" href="/api-reference/list-events">
+    API reference for querying events by session.
+  </Card>
+  <Card title="Geolocation" icon="globe" href="/guides/geolocation">
+    IP enrichment adds location context to every event.
+  </Card>
+</CardGroup>

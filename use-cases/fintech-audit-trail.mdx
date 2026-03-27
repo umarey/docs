@@ -1,0 +1,415 @@
+---
+title: Financial Transaction Audit Trail
+description: Build a tamper-evident audit trail for payment processing with hash chain verification and SOC2-ready compliance.
+icon: building-columns
+---
+
+Payment platforms, neobanks, and fintech companies need immutable records of every financial action for regulatory audits, dispute resolution, and fraud investigation. Immutable provides a cryptographic hash chain that proves no records have been tampered with — a requirement for SOC2, PCI-DSS, and financial auditor reviews.
+
+## Tracking the Payment Lifecycle
+
+### Payment Initiated
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    import { ImmutableClient } from "getimmutable";
+
+    const client = new ImmutableClient({
+      apiKey: "imk_sk_a1b2c3d4e5f6g7h8i9j0",
+      baseUrl: "https://getimmutable.dev",
+    });
+
+    await client
+      .actor("user_9c4k7m", { name: "Alex Thompson", type: "customer" })
+      .session("sess_f82c4a1b")
+      .track("payment.initiated", "payment", {
+        payment_id: "pay_3f8a2b1c",
+        amount: 24999,
+        currency: "USD",
+        payment_method: "card_visa_4242",
+        recipient: "merchant_coffeeco",
+        description: "Annual subscription renewal",
+        idempotency_key: "idem_pay_3f8a2b1c_init",
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from getimmutable import ImmutableClient
+
+    client = ImmutableClient(
+        api_key="imk_sk_a1b2c3d4e5f6g7h8i9j0",
+        base_url="https://getimmutable.dev"
+    )
+
+    client.actor("user_9c4k7m", name="Alex Thompson", type="customer") \
+        .session("sess_f82c4a1b") \
+        .track("payment.initiated", "payment", {
+            "payment_id": "pay_3f8a2b1c",
+            "amount": 24999,
+            "currency": "USD",
+            "payment_method": "card_visa_4242",
+            "recipient": "merchant_coffeeco",
+            "description": "Annual subscription renewal",
+            "idempotency_key": "idem_pay_3f8a2b1c_init",
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "user_9c4k7m",
+        "actor_name": "Alex Thompson",
+        "actor_type": "customer",
+        "session_id": "sess_f82c4a1b",
+        "action": "payment.initiated",
+        "resource": "payment",
+        "resource_id": "pay_3f8a2b1c",
+        "metadata": {
+          "amount": 24999,
+          "currency": "USD",
+          "payment_method": "card_visa_4242",
+          "recipient": "merchant_coffeeco",
+          "description": "Annual subscription renewal"
+        },
+        "idempotency_key": "idem_pay_3f8a2b1c_init"
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  Store monetary amounts as integers in the smallest currency unit (cents for USD). This avoids floating-point precision issues and matches how Stripe and other payment processors work.
+</Tip>
+
+### Payment Processed by System
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    await client
+      .actor("system_payment_processor", { name: "Payment Engine", type: "system" })
+      .track("payment.processed", "payment", {
+        payment_id: "pay_3f8a2b1c",
+        amount: 24999,
+        currency: "USD",
+        processor_ref: "ch_3MqBD2AIC9a1b2c3",
+        processing_time_ms: 1842,
+        risk_score: 12,
+        targets: [
+          { type: "payment", id: "pay_3f8a2b1c" },
+          { type: "customer", id: "user_9c4k7m", name: "Alex Thompson" },
+          { type: "merchant", id: "merchant_coffeeco", name: "Coffee Co" },
+        ],
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.actor("system_payment_processor", name="Payment Engine", type="system") \
+        .track("payment.processed", "payment", {
+            "payment_id": "pay_3f8a2b1c",
+            "amount": 24999,
+            "currency": "USD",
+            "processor_ref": "ch_3MqBD2AIC9a1b2c3",
+            "processing_time_ms": 1842,
+            "risk_score": 12,
+            "targets": [
+                {"type": "payment", "id": "pay_3f8a2b1c"},
+                {"type": "customer", "id": "user_9c4k7m", "name": "Alex Thompson"},
+                {"type": "merchant", "id": "merchant_coffeeco", "name": "Coffee Co"},
+            ],
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "system_payment_processor",
+        "actor_name": "Payment Engine",
+        "actor_type": "system",
+        "action": "payment.processed",
+        "resource": "payment",
+        "resource_id": "pay_3f8a2b1c",
+        "metadata": {
+          "amount": 24999,
+          "currency": "USD",
+          "processor_ref": "ch_3MqBD2AIC9a1b2c3",
+          "processing_time_ms": 1842,
+          "risk_score": 12
+        },
+        "targets": [
+          {"type": "payment", "id": "pay_3f8a2b1c"},
+          {"type": "customer", "id": "user_9c4k7m", "name": "Alex Thompson"},
+          {"type": "merchant", "id": "merchant_coffeeco", "name": "Coffee Co"}
+        ]
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+### Refund Requested and Approved
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    // Customer requests refund
+    await client
+      .actor("user_9c4k7m", { name: "Alex Thompson", type: "customer" })
+      .session("sess_b93d5e2f")
+      .track("refund.requested", "payment", {
+        payment_id: "pay_3f8a2b1c",
+        refund_id: "ref_8d2c1a4b",
+        amount: 24999,
+        currency: "USD",
+        reason: "duplicate_charge",
+      });
+
+    // Support agent approves refund
+    await client
+      .actor("agent_k2m8p4", { name: "Jamie Park", type: "support_agent" })
+      .session("sess_71ae3c9d")
+      .track("refund.approved", "payment", {
+        payment_id: "pay_3f8a2b1c",
+        refund_id: "ref_8d2c1a4b",
+        amount: 24999,
+        currency: "USD",
+        approval_note: "Confirmed duplicate charge in Stripe dashboard",
+        targets: [
+          { type: "payment", id: "pay_3f8a2b1c" },
+          { type: "refund", id: "ref_8d2c1a4b" },
+          { type: "customer", id: "user_9c4k7m", name: "Alex Thompson" },
+        ],
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    # Customer requests refund
+    client.actor("user_9c4k7m", name="Alex Thompson", type="customer") \
+        .session("sess_b93d5e2f") \
+        .track("refund.requested", "payment", {
+            "payment_id": "pay_3f8a2b1c",
+            "refund_id": "ref_8d2c1a4b",
+            "amount": 24999,
+            "currency": "USD",
+            "reason": "duplicate_charge",
+        })
+
+    # Support agent approves refund
+    client.actor("agent_k2m8p4", name="Jamie Park", type="support_agent") \
+        .session("sess_71ae3c9d") \
+        .track("refund.approved", "payment", {
+            "payment_id": "pay_3f8a2b1c",
+            "refund_id": "ref_8d2c1a4b",
+            "amount": 24999,
+            "currency": "USD",
+            "approval_note": "Confirmed duplicate charge in Stripe dashboard",
+            "targets": [
+                {"type": "payment", "id": "pay_3f8a2b1c"},
+                {"type": "refund", "id": "ref_8d2c1a4b"},
+                {"type": "customer", "id": "user_9c4k7m", "name": "Alex Thompson"},
+            ],
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    # Refund requested
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "user_9c4k7m",
+        "actor_name": "Alex Thompson",
+        "actor_type": "customer",
+        "session_id": "sess_b93d5e2f",
+        "action": "refund.requested",
+        "resource": "payment",
+        "resource_id": "pay_3f8a2b1c",
+        "metadata": {
+          "refund_id": "ref_8d2c1a4b",
+          "amount": 24999,
+          "currency": "USD",
+          "reason": "duplicate_charge"
+        }
+      }'
+
+    # Refund approved
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "agent_k2m8p4",
+        "actor_name": "Jamie Park",
+        "actor_type": "support_agent",
+        "session_id": "sess_71ae3c9d",
+        "action": "refund.approved",
+        "resource": "payment",
+        "resource_id": "pay_3f8a2b1c",
+        "metadata": {
+          "refund_id": "ref_8d2c1a4b",
+          "amount": 24999,
+          "currency": "USD",
+          "approval_note": "Confirmed duplicate charge in Stripe dashboard"
+        },
+        "targets": [
+          {"type": "payment", "id": "pay_3f8a2b1c"},
+          {"type": "refund", "id": "ref_8d2c1a4b"},
+          {"type": "customer", "id": "user_9c4k7m", "name": "Alex Thompson"}
+        ]
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+### Payout Completed
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    await client
+      .actor("system_payout_engine", { name: "Payout Engine", type: "system" })
+      .track("payout.completed", "payout", {
+        payout_id: "po_5a9c2d3e",
+        merchant_id: "merchant_coffeeco",
+        amount: 23749,
+        currency: "USD",
+        fee_deducted: 1250,
+        bank_ref: "ach_9f8e7d6c5b4a",
+        settlement_date: "2026-03-28",
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.actor("system_payout_engine", name="Payout Engine", type="system") \
+        .track("payout.completed", "payout", {
+            "payout_id": "po_5a9c2d3e",
+            "merchant_id": "merchant_coffeeco",
+            "amount": 23749,
+            "currency": "USD",
+            "fee_deducted": 1250,
+            "bank_ref": "ach_9f8e7d6c5b4a",
+            "settlement_date": "2026-03-28",
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "system_payout_engine",
+        "actor_name": "Payout Engine",
+        "actor_type": "system",
+        "action": "payout.completed",
+        "resource": "payout",
+        "resource_id": "po_5a9c2d3e",
+        "metadata": {
+          "merchant_id": "merchant_coffeeco",
+          "amount": 23749,
+          "currency": "USD",
+          "fee_deducted": 1250,
+          "bank_ref": "ach_9f8e7d6c5b4a",
+          "settlement_date": "2026-03-28"
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## Hash Chain Verification for Tamper Evidence
+
+The cryptographic hash chain proves that no events have been inserted, deleted, or modified. Each event's hash includes the previous event's hash, creating an unbreakable chain.
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    const result = await client.verify();
+
+    if (result.status === "valid") {
+      console.log("Audit trail integrity confirmed");
+      console.log(`Events verified: ${result.events_checked}`);
+    } else {
+      console.error("INTEGRITY BREACH DETECTED");
+      result.breaks.forEach((b) => {
+        console.error(`  ${b.type} at event ${b.event_id}: ${b.message}`);
+      });
+    }
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    result = client.verify()
+
+    if result["status"] == "valid":
+        print(f"Audit trail integrity confirmed — {result['events_checked']} events verified")
+    else:
+        print("INTEGRITY BREACH DETECTED")
+        for b in result["breaks"]:
+            print(f"  {b['type']} at event {b['event_id']}: {b['message']}")
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl https://getimmutable.dev/api/v1/verify \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0"
+    ```
+
+    Response when the chain is intact:
+    ```json
+    {
+      "status": "valid",
+      "events_checked": 14829,
+      "first_event_at": "2026-01-15T08:30:00.000000Z",
+      "last_event_at": "2026-03-27T16:42:18.291034Z"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Run hash chain verification on a schedule (daily or weekly) and alert your compliance team immediately if any breaks are detected. Immutable's alert rules can automate this for you.
+</Warning>
+
+## SOC2 Compliance
+
+Immutable's audit trail directly supports SOC2 Trust Service Criteria:
+
+| SOC2 Criteria | How Immutable Helps |
+|---|---|
+| **CC6.1** — Logical access controls | Track every login, role change, and permission grant with actor context |
+| **CC7.2** — System monitoring | Alert rules detect anomalous activity (off-hours access, new country logins) |
+| **CC8.1** — Change management | Record every configuration and infrastructure change |
+| **CC7.4** — Incident response | Query the audit trail to investigate security incidents |
+| **PI1.3** — Data integrity | Cryptographic hash chain proves records haven't been tampered with |
+
+<Note>
+  For SOC2 readiness, enable admin audit logs in your Immutable workspace. These track actions by your own team — API key creation, alert rule changes, export downloads — providing the internal controls auditors require.
+</Note>
+
+## What's Next
+
+<CardGroup cols={2}>
+  <Card title="Hash Chain Verification" icon="link" href="/security/hash-verification">
+    Deep dive into how the cryptographic hash chain works.
+  </Card>
+  <Card title="SOC2 Compliance" icon="shield-check" href="/security/soc2">
+    Full guide to SOC2 readiness with Immutable.
+  </Card>
+  <Card title="Alert Rules" icon="bell" href="/platform/alert-rules">
+    Set up automated alerts for suspicious financial activity.
+  </Card>
+  <Card title="Exports" icon="file-export" href="/platform/exports">
+    Export audit logs for external compliance reviews.
+  </Card>
+</CardGroup>

@@ -1,0 +1,406 @@
+---
+title: SaaS User Activity Tracking
+description: Track every user action in your project management tool with full context, session tracking, and customer-facing activity feeds.
+icon: list-check
+---
+
+A project management tool like Asana or Linear needs a complete record of who did what and when. Immutable lets you track every action — from creating projects to completing tasks — with full actor context, session continuity, and multi-resource targeting. Your customers can even view their own activity feed via an embeddable viewer.
+
+## Setting Up the Client
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    import { ImmutableClient } from "getimmutable";
+
+    const client = new ImmutableClient({
+      apiKey: "imk_sk_a1b2c3d4e5f6g7h8i9j0",
+      baseUrl: "https://getimmutable.dev",
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from getimmutable import ImmutableClient
+
+    client = ImmutableClient(
+        api_key="imk_sk_a1b2c3d4e5f6g7h8i9j0",
+        base_url="https://getimmutable.dev"
+    )
+    ```
+  </Tab>
+  <Tab title="Laravel">
+    ```php
+    // config is loaded from .env automatically
+    // GETIMMUTABLE_API_KEY=imk_sk_a1b2c3d4e5f6g7h8i9j0
+    // GETIMMUTABLE_BASE_URL=https://getimmutable.dev
+
+    use GetImmutable\Laravel\Facades\AuditLog;
+    ```
+  </Tab>
+</Tabs>
+
+## Tracking the Full Project Lifecycle
+
+### User Creates a Project
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    await client
+      .actor("user_8f3k2", { name: "Sarah Chen", type: "user" })
+      .session("sess_29dk3f8a")
+      .track("project.created", "project", {
+        project_id: "proj_4a9f2c",
+        project_name: "Q3 Marketing Campaign",
+        visibility: "team",
+        template: "marketing-launch",
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.actor("user_8f3k2", name="Sarah Chen", type="user") \
+        .session("sess_29dk3f8a") \
+        .track("project.created", "project", {
+            "project_id": "proj_4a9f2c",
+            "project_name": "Q3 Marketing Campaign",
+            "visibility": "team",
+            "template": "marketing-launch",
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "user_8f3k2",
+        "actor_name": "Sarah Chen",
+        "actor_type": "user",
+        "session_id": "sess_29dk3f8a",
+        "action": "project.created",
+        "resource": "project",
+        "resource_id": "proj_4a9f2c",
+        "resource_name": "Q3 Marketing Campaign",
+        "metadata": {
+          "visibility": "team",
+          "template": "marketing-launch"
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+### User Adds a Task with Targets
+
+When a task is created inside a project, use **targets** to link the event to both the project and the task:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    await client
+      .actor("user_8f3k2", { name: "Sarah Chen", type: "user" })
+      .session("sess_29dk3f8a")
+      .track("task.created", "task", {
+        task_id: "task_7b2e9d",
+        task_title: "Design landing page mockup",
+        priority: "high",
+        due_date: "2026-04-15",
+        targets: [
+          { type: "project", id: "proj_4a9f2c", name: "Q3 Marketing Campaign" },
+          { type: "task", id: "task_7b2e9d", name: "Design landing page mockup" },
+        ],
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.actor("user_8f3k2", name="Sarah Chen", type="user") \
+        .session("sess_29dk3f8a") \
+        .track("task.created", "task", {
+            "task_id": "task_7b2e9d",
+            "task_title": "Design landing page mockup",
+            "priority": "high",
+            "due_date": "2026-04-15",
+            "targets": [
+                {"type": "project", "id": "proj_4a9f2c", "name": "Q3 Marketing Campaign"},
+                {"type": "task", "id": "task_7b2e9d", "name": "Design landing page mockup"},
+            ],
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "user_8f3k2",
+        "actor_name": "Sarah Chen",
+        "actor_type": "user",
+        "session_id": "sess_29dk3f8a",
+        "action": "task.created",
+        "resource": "task",
+        "resource_id": "task_7b2e9d",
+        "resource_name": "Design landing page mockup",
+        "metadata": {
+          "priority": "high",
+          "due_date": "2026-04-15"
+        },
+        "targets": [
+          {"type": "project", "id": "proj_4a9f2c", "name": "Q3 Marketing Campaign"},
+          {"type": "task", "id": "task_7b2e9d", "name": "Design landing page mockup"}
+        ]
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+### User Assigns a Team Member
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    await client
+      .actor("user_8f3k2", { name: "Sarah Chen", type: "user" })
+      .session("sess_29dk3f8a")
+      .track("task.member_assigned", "task", {
+        task_id: "task_7b2e9d",
+        assignee_id: "user_3m7p1q",
+        assignee_name: "Marcus Rivera",
+        targets: [
+          { type: "project", id: "proj_4a9f2c", name: "Q3 Marketing Campaign" },
+          { type: "task", id: "task_7b2e9d", name: "Design landing page mockup" },
+          { type: "user", id: "user_3m7p1q", name: "Marcus Rivera" },
+        ],
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.actor("user_8f3k2", name="Sarah Chen", type="user") \
+        .session("sess_29dk3f8a") \
+        .track("task.member_assigned", "task", {
+            "task_id": "task_7b2e9d",
+            "assignee_id": "user_3m7p1q",
+            "assignee_name": "Marcus Rivera",
+            "targets": [
+                {"type": "project", "id": "proj_4a9f2c", "name": "Q3 Marketing Campaign"},
+                {"type": "task", "id": "task_7b2e9d", "name": "Design landing page mockup"},
+                {"type": "user", "id": "user_3m7p1q", "name": "Marcus Rivera"},
+            ],
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "user_8f3k2",
+        "actor_name": "Sarah Chen",
+        "actor_type": "user",
+        "session_id": "sess_29dk3f8a",
+        "action": "task.member_assigned",
+        "resource": "task",
+        "resource_id": "task_7b2e9d",
+        "resource_name": "Design landing page mockup",
+        "metadata": {
+          "assignee_id": "user_3m7p1q",
+          "assignee_name": "Marcus Rivera"
+        },
+        "targets": [
+          {"type": "project", "id": "proj_4a9f2c", "name": "Q3 Marketing Campaign"},
+          {"type": "task", "id": "task_7b2e9d", "name": "Design landing page mockup"},
+          {"type": "user", "id": "user_3m7p1q", "name": "Marcus Rivera"}
+        ]
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+### Task Completed and Project Archived
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    // Task completed by the assignee
+    await client
+      .actor("user_3m7p1q", { name: "Marcus Rivera", type: "user" })
+      .session("sess_44bf9c2e")
+      .track("task.completed", "task", {
+        task_id: "task_7b2e9d",
+        time_spent_hours: 12.5,
+        targets: [
+          { type: "project", id: "proj_4a9f2c", name: "Q3 Marketing Campaign" },
+          { type: "task", id: "task_7b2e9d", name: "Design landing page mockup" },
+        ],
+      });
+
+    // Project archived by the manager
+    await client
+      .actor("user_8f3k2", { name: "Sarah Chen", type: "user" })
+      .session("sess_29dk3f8a")
+      .track("project.archived", "project", {
+        project_id: "proj_4a9f2c",
+        total_tasks: 24,
+        completed_tasks: 24,
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    # Task completed by the assignee
+    client.actor("user_3m7p1q", name="Marcus Rivera", type="user") \
+        .session("sess_44bf9c2e") \
+        .track("task.completed", "task", {
+            "task_id": "task_7b2e9d",
+            "time_spent_hours": 12.5,
+            "targets": [
+                {"type": "project", "id": "proj_4a9f2c", "name": "Q3 Marketing Campaign"},
+                {"type": "task", "id": "task_7b2e9d", "name": "Design landing page mockup"},
+            ],
+        })
+
+    # Project archived by the manager
+    client.actor("user_8f3k2", name="Sarah Chen", type="user") \
+        .session("sess_29dk3f8a") \
+        .track("project.archived", "project", {
+            "project_id": "proj_4a9f2c",
+            "total_tasks": 24,
+            "completed_tasks": 24,
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    # Task completed
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "user_3m7p1q",
+        "actor_name": "Marcus Rivera",
+        "actor_type": "user",
+        "session_id": "sess_44bf9c2e",
+        "action": "task.completed",
+        "resource": "task",
+        "resource_id": "task_7b2e9d",
+        "resource_name": "Design landing page mockup",
+        "metadata": {"time_spent_hours": 12.5},
+        "targets": [
+          {"type": "project", "id": "proj_4a9f2c", "name": "Q3 Marketing Campaign"},
+          {"type": "task", "id": "task_7b2e9d", "name": "Design landing page mockup"}
+        ]
+      }'
+
+    # Project archived
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "user_8f3k2",
+        "actor_name": "Sarah Chen",
+        "actor_type": "user",
+        "session_id": "sess_29dk3f8a",
+        "action": "project.archived",
+        "resource": "project",
+        "resource_id": "proj_4a9f2c",
+        "resource_name": "Q3 Marketing Campaign",
+        "metadata": {"total_tasks": 24, "completed_tasks": 24}
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## Querying Activity by Actor
+
+Retrieve all actions performed by a specific user:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    const events = await client.getEvents({
+      actor_id: "user_8f3k2",
+      limit: 50,
+    });
+
+    events.data.forEach((event) => {
+      console.log(`${event.occurred_at} — ${event.action} on ${event.resource_name}`);
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    events = client.get_events(actor_id="user_8f3k2", limit=50)
+
+    for event in events["data"]:
+        print(f"{event['occurred_at']} — {event['action']} on {event['resource_name']}")
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl "https://getimmutable.dev/api/v1/events?actor_id=user_8f3k2&limit=50" \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0"
+    ```
+  </Tab>
+</Tabs>
+
+## Building a Customer-Facing Activity Feed
+
+Create a viewer token scoped to a tenant so customers can see their own team's activity:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    const token = await client.createViewerToken({
+      tenantId: "org_acme_corp",
+      ttl: 3600,
+    });
+
+    // Pass token.viewer_token to your frontend
+    // Embed the viewer iframe or query the public events endpoint
+    console.log(token.viewer_token);
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    token = client.create_viewer_token(tenant_id="org_acme_corp", ttl=3600)
+
+    # Pass token["viewer_token"] to your frontend
+    print(token["viewer_token"])
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/viewer-tokens \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{"tenant_id": "org_acme_corp", "ttl": 3600}'
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  Viewer tokens are scoped by `tenant_id`, so each customer organization only sees their own events. Set a TTL that matches your frontend session length.
+</Tip>
+
+## What's Next
+
+<CardGroup cols={2}>
+  <Card title="Targets" icon="bullseye" href="/guides/targets">
+    Learn how targets link events to multiple resources.
+  </Card>
+  <Card title="Session Tracking" icon="route" href="/guides/session-tracking">
+    Group events into user sessions for richer context.
+  </Card>
+  <Card title="Embeddable Viewer" icon="window" href="/guides/embeddable-viewer">
+    Build a customer-facing activity feed with viewer tokens.
+  </Card>
+  <Card title="Customer-Facing Activity Feed" icon="users" href="/use-cases/multi-tenant-activity-feed">
+    Full guide to multi-tenant activity feeds.
+  </Card>
+</CardGroup>

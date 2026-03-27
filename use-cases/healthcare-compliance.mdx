@@ -1,0 +1,414 @@
+---
+title: Healthcare & HIPAA Compliance
+description: Track access to patient records, enforce geolocation policies, and meet HIPAA audit requirements with 7-year retention.
+icon: hospital
+---
+
+Health-tech applications handling Protected Health Information (PHI) must maintain detailed access logs under HIPAA. Immutable provides the tamper-evident audit trail, IP geolocation tracking, alert rules for suspicious access, and long-term retention that HIPAA compliance demands.
+
+## Multi-Clinic Setup with Tenant Isolation
+
+Use `tenant_id` to isolate events by clinic or healthcare organization. Each clinic's staff only sees their own audit trail.
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    import { ImmutableClient } from "getimmutable";
+
+    const client = new ImmutableClient({
+      apiKey: "imk_sk_a1b2c3d4e5f6g7h8i9j0",
+      baseUrl: "https://getimmutable.dev",
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from getimmutable import ImmutableClient
+
+    client = ImmutableClient(
+        api_key="imk_sk_a1b2c3d4e5f6g7h8i9j0",
+        base_url="https://getimmutable.dev"
+    )
+    ```
+  </Tab>
+  <Tab title="Laravel">
+    ```php
+    use GetImmutable\Laravel\Facades\AuditLog;
+    ```
+  </Tab>
+</Tabs>
+
+## Tracking PHI Access Events
+
+### Patient Record Viewed
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    await client.track({
+      actor_id: "dr_m4k8p2",
+      actor_name: "Dr. Emily Nakamura",
+      actor_type: "physician",
+      tenant_id: "clinic_bayview_medical",
+      session_id: "sess_e4a2c8f1",
+      action: "patient_record.viewed",
+      resource: "patient_record",
+      resource_id: "pat_7f3a9c2d",
+      resource_name: "Record #7f3a9c2d",
+      metadata: {
+        patient_mrn: "MRN-2024-08291",
+        sections_accessed: ["demographics", "medications", "lab_results"],
+        access_reason: "scheduled_appointment",
+        department: "internal_medicine",
+      },
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.track({
+        "actor_id": "dr_m4k8p2",
+        "actor_name": "Dr. Emily Nakamura",
+        "actor_type": "physician",
+        "tenant_id": "clinic_bayview_medical",
+        "session_id": "sess_e4a2c8f1",
+        "action": "patient_record.viewed",
+        "resource": "patient_record",
+        "resource_id": "pat_7f3a9c2d",
+        "resource_name": "Record #7f3a9c2d",
+        "metadata": {
+            "patient_mrn": "MRN-2024-08291",
+            "sections_accessed": ["demographics", "medications", "lab_results"],
+            "access_reason": "scheduled_appointment",
+            "department": "internal_medicine",
+        },
+    })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "dr_m4k8p2",
+        "actor_name": "Dr. Emily Nakamura",
+        "actor_type": "physician",
+        "tenant_id": "clinic_bayview_medical",
+        "session_id": "sess_e4a2c8f1",
+        "action": "patient_record.viewed",
+        "resource": "patient_record",
+        "resource_id": "pat_7f3a9c2d",
+        "resource_name": "Record #7f3a9c2d",
+        "metadata": {
+          "patient_mrn": "MRN-2024-08291",
+          "sections_accessed": ["demographics", "medications", "lab_results"],
+          "access_reason": "scheduled_appointment",
+          "department": "internal_medicine"
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  Never store actual PHI (patient names, SSNs, diagnoses) in audit log metadata. Use opaque identifiers like MRN numbers and record IDs. The audit log tracks *who accessed what*, not the PHI content itself.
+</Note>
+
+### Prescription Created
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    await client
+      .actor("dr_m4k8p2", { name: "Dr. Emily Nakamura", type: "physician" })
+      .session("sess_e4a2c8f1")
+      .track("prescription.created", "prescription", {
+        prescription_id: "rx_4b8e2a1c",
+        patient_record_id: "pat_7f3a9c2d",
+        medication_code: "NDC-0002-4462-01",
+        quantity: 30,
+        refills: 2,
+        e_prescribe: true,
+        tenant_id: "clinic_bayview_medical",
+        targets: [
+          { type: "patient_record", id: "pat_7f3a9c2d" },
+          { type: "prescription", id: "rx_4b8e2a1c" },
+        ],
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.actor("dr_m4k8p2", name="Dr. Emily Nakamura", type="physician") \
+        .session("sess_e4a2c8f1") \
+        .track("prescription.created", "prescription", {
+            "prescription_id": "rx_4b8e2a1c",
+            "patient_record_id": "pat_7f3a9c2d",
+            "medication_code": "NDC-0002-4462-01",
+            "quantity": 30,
+            "refills": 2,
+            "e_prescribe": True,
+            "tenant_id": "clinic_bayview_medical",
+            "targets": [
+                {"type": "patient_record", "id": "pat_7f3a9c2d"},
+                {"type": "prescription", "id": "rx_4b8e2a1c"},
+            ],
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "dr_m4k8p2",
+        "actor_name": "Dr. Emily Nakamura",
+        "actor_type": "physician",
+        "tenant_id": "clinic_bayview_medical",
+        "session_id": "sess_e4a2c8f1",
+        "action": "prescription.created",
+        "resource": "prescription",
+        "resource_id": "rx_4b8e2a1c",
+        "metadata": {
+          "patient_record_id": "pat_7f3a9c2d",
+          "medication_code": "NDC-0002-4462-01",
+          "quantity": 30,
+          "refills": 2,
+          "e_prescribe": true
+        },
+        "targets": [
+          {"type": "patient_record", "id": "pat_7f3a9c2d"},
+          {"type": "prescription", "id": "rx_4b8e2a1c"}
+        ]
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+### Lab Results Accessed and Record Exported
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    // Lab results accessed by a nurse
+    await client
+      .actor("nurse_j7k3m1", { name: "Carlos Reyes", type: "nurse" })
+      .session("sess_a1b2c3d4")
+      .track("lab_results.accessed", "patient_record", {
+        patient_record_id: "pat_7f3a9c2d",
+        lab_order_id: "lab_9c8d7e6f",
+        test_type: "comprehensive_metabolic_panel",
+        tenant_id: "clinic_bayview_medical",
+      });
+
+    // Record exported for referral
+    await client
+      .actor("dr_m4k8p2", { name: "Dr. Emily Nakamura", type: "physician" })
+      .session("sess_e4a2c8f1")
+      .track("patient_record.exported", "patient_record", {
+        patient_record_id: "pat_7f3a9c2d",
+        export_format: "HL7_FHIR",
+        export_reason: "specialist_referral",
+        recipient_org: "Stanford Cardiology",
+        sections_exported: ["demographics", "medications", "lab_results", "vitals"],
+        tenant_id: "clinic_bayview_medical",
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    # Lab results accessed by a nurse
+    client.actor("nurse_j7k3m1", name="Carlos Reyes", type="nurse") \
+        .session("sess_a1b2c3d4") \
+        .track("lab_results.accessed", "patient_record", {
+            "patient_record_id": "pat_7f3a9c2d",
+            "lab_order_id": "lab_9c8d7e6f",
+            "test_type": "comprehensive_metabolic_panel",
+            "tenant_id": "clinic_bayview_medical",
+        })
+
+    # Record exported for referral
+    client.actor("dr_m4k8p2", name="Dr. Emily Nakamura", type="physician") \
+        .session("sess_e4a2c8f1") \
+        .track("patient_record.exported", "patient_record", {
+            "patient_record_id": "pat_7f3a9c2d",
+            "export_format": "HL7_FHIR",
+            "export_reason": "specialist_referral",
+            "recipient_org": "Stanford Cardiology",
+            "sections_exported": ["demographics", "medications", "lab_results", "vitals"],
+            "tenant_id": "clinic_bayview_medical",
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    # Lab results accessed
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "nurse_j7k3m1",
+        "actor_name": "Carlos Reyes",
+        "actor_type": "nurse",
+        "tenant_id": "clinic_bayview_medical",
+        "session_id": "sess_a1b2c3d4",
+        "action": "lab_results.accessed",
+        "resource": "patient_record",
+        "resource_id": "pat_7f3a9c2d",
+        "metadata": {
+          "lab_order_id": "lab_9c8d7e6f",
+          "test_type": "comprehensive_metabolic_panel"
+        }
+      }'
+
+    # Record exported
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "dr_m4k8p2",
+        "actor_name": "Dr. Emily Nakamura",
+        "actor_type": "physician",
+        "tenant_id": "clinic_bayview_medical",
+        "session_id": "sess_e4a2c8f1",
+        "action": "patient_record.exported",
+        "resource": "patient_record",
+        "resource_id": "pat_7f3a9c2d",
+        "metadata": {
+          "export_format": "HL7_FHIR",
+          "export_reason": "specialist_referral",
+          "recipient_org": "Stanford Cardiology",
+          "sections_exported": ["demographics", "medications", "lab_results", "vitals"]
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## IP Geolocation Tracking
+
+Immutable automatically enriches every event with IP geolocation data. This is critical for healthcare compliance — you can detect when PHI is accessed from unexpected locations.
+
+Every event response includes:
+
+```json
+{
+  "ip_address": "203.0.113.42",
+  "ip_country": "US",
+  "ip_city": "San Francisco"
+}
+```
+
+Use this data to investigate access patterns and feed into alert rules.
+
+## Alert Rules for Suspicious Access
+
+### Off-Hours Access Alert
+
+Detect when patient records are accessed outside of clinic hours:
+
+```json
+{
+  "name": "Off-Hours PHI Access",
+  "rule_type": "off_hours",
+  "conditions": {
+    "action_pattern": "patient_record.*",
+    "timezone": "America/Los_Angeles",
+    "start_hour": 20,
+    "end_hour": 6
+  },
+  "channels": ["email", "webhook"]
+}
+```
+
+### New Country Login Alert
+
+Detect when a staff member accesses the system from an unfamiliar country:
+
+```json
+{
+  "name": "Foreign Country Access",
+  "rule_type": "new_country",
+  "conditions": {
+    "action_pattern": "*.accessed"
+  },
+  "channels": ["email", "webhook"]
+}
+```
+
+<Warning>
+  HIPAA requires that you investigate and document all suspicious access incidents. Configure alert rules to notify your compliance officer immediately when off-hours or foreign-location access is detected.
+</Warning>
+
+## Retention Settings for HIPAA
+
+HIPAA requires covered entities to retain audit logs for a minimum of 6 years. Immutable's Enterprise plan provides unlimited retention.
+
+| Plan | Retention Period | HIPAA Compliant |
+|---|---|---|
+| Free | 30 days | No |
+| Starter | 90 days | No |
+| Pro | 365 days | No |
+| Enterprise | Unlimited | Yes |
+
+<Note>
+  For HIPAA compliance, you need the Enterprise plan with unlimited retention configured to at least 7 years (the most conservative interpretation of HIPAA's 6-year requirement). Contact support to configure your retention policy.
+</Note>
+
+## Querying Access History for Audits
+
+When a HIPAA audit or breach investigation requires you to produce all access records for a specific patient:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    const events = await client.getEvents({
+      resource_id: "pat_7f3a9c2d",
+      limit: 100,
+    });
+
+    events.data.forEach((event) => {
+      console.log(
+        `${event.occurred_at} | ${event.actor_name} (${event.actor_type}) | ` +
+        `${event.action} | IP: ${event.ip_address} (${event.ip_country})`
+      );
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    events = client.get_events(resource_id="pat_7f3a9c2d", limit=100)
+
+    for event in events["data"]:
+        print(
+            f"{event['occurred_at']} | {event['actor_name']} ({event['actor_type']}) | "
+            f"{event['action']} | IP: {event['ip_address']} ({event['ip_country']})"
+        )
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl "https://getimmutable.dev/api/v1/events?resource_id=pat_7f3a9c2d&limit=100" \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0"
+    ```
+  </Tab>
+</Tabs>
+
+## What's Next
+
+<CardGroup cols={2}>
+  <Card title="Geolocation" icon="globe" href="/guides/geolocation">
+    Learn how IP geolocation enrichment works.
+  </Card>
+  <Card title="Alert Rules" icon="bell" href="/platform/alert-rules">
+    Configure alerts for off-hours and new country access.
+  </Card>
+  <Card title="Retention" icon="clock" href="/platform/retention">
+    Configure retention policies for long-term compliance.
+  </Card>
+  <Card title="Suspicious Login Detection" icon="shield" href="/use-cases/suspicious-login-detection">
+    Full guide to detecting suspicious access patterns.
+  </Card>
+</CardGroup>

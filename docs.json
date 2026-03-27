@@ -61,6 +61,19 @@
               "guides/siem-integration",
               "guides/migrating"
             ]
+          },
+          {
+            "group": "Use Cases",
+            "pages": [
+              "use-cases/saas-activity-logs",
+              "use-cases/fintech-audit-trail",
+              "use-cases/healthcare-compliance",
+              "use-cases/ecommerce-orders",
+              "use-cases/devops-changes",
+              "use-cases/suspicious-login-detection",
+              "use-cases/multi-tenant-activity-feed",
+              "use-cases/session-debugging"
+            ]
           }
         ]
       },

@@ -1,0 +1,346 @@
+---
+title: Suspicious Login Detection
+description: Detect suspicious logins using IP geolocation, alert rules for new country and off-hours access, and brute force detection with repeated action alerts.
+icon: shield-halved
+---
+
+Account security starts with knowing when something looks wrong. Immutable tracks every login with IP geolocation, then uses alert rules to automatically flag suspicious patterns — logins from new countries, access at unusual hours, and brute force attempts. When an alert fires, your security team gets notified instantly via email or webhook.
+
+## Tracking Logins with Geolocation
+
+Every event sent to Immutable is automatically enriched with IP geolocation data (country and city). Track login events to build a baseline of normal access patterns:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    import { ImmutableClient } from "getimmutable";
+
+    const client = new ImmutableClient({
+      apiKey: "imk_sk_a1b2c3d4e5f6g7h8i9j0",
+      baseUrl: "https://getimmutable.dev",
+    });
+
+    await client
+      .actor("user_5a3c8f", { name: "Jordan Mitchell", type: "user" })
+      .session("sess_7b2d4e6f")
+      .track("auth.login", "account", {
+        login_method: "password",
+        mfa_used: true,
+        mfa_method: "totp",
+        device: "Chrome 122 / macOS",
+        tenant_id: "org_acme_corp",
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from getimmutable import ImmutableClient
+
+    client = ImmutableClient(
+        api_key="imk_sk_a1b2c3d4e5f6g7h8i9j0",
+        base_url="https://getimmutable.dev"
+    )
+
+    client.actor("user_5a3c8f", name="Jordan Mitchell", type="user") \
+        .session("sess_7b2d4e6f") \
+        .track("auth.login", "account", {
+            "login_method": "password",
+            "mfa_used": True,
+            "mfa_method": "totp",
+            "device": "Chrome 122 / macOS",
+            "tenant_id": "org_acme_corp",
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "user_5a3c8f",
+        "actor_name": "Jordan Mitchell",
+        "actor_type": "user",
+        "session_id": "sess_7b2d4e6f",
+        "action": "auth.login",
+        "resource": "account",
+        "resource_id": "user_5a3c8f",
+        "metadata": {
+          "login_method": "password",
+          "mfa_used": true,
+          "mfa_method": "totp",
+          "device": "Chrome 122 / macOS"
+        },
+        "tenant_id": "org_acme_corp"
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+The event response includes automatically enriched geolocation:
+
+```json
+{
+  "id": "evt_9f3a2c1d-4b5e-6f7a-8b9c-0d1e2f3a4b5c",
+  "actor_id": "user_5a3c8f",
+  "actor_name": "Jordan Mitchell",
+  "action": "auth.login",
+  "ip_address": "198.51.100.42",
+  "ip_country": "US",
+  "ip_city": "San Francisco",
+  "occurred_at": "2026-03-27T14:32:18.291034Z"
+}
+```
+
+Also track failed login attempts — these are critical for detecting brute force attacks:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    await client
+      .actor("unknown", { name: "Unknown", type: "anonymous" })
+      .track("auth.login_failed", "account", {
+        attempted_email: "jordan@acmecorp.com",
+        failure_reason: "invalid_password",
+        attempt_number: 4,
+      });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    client.actor("unknown", name="Unknown", type="anonymous") \
+        .track("auth.login_failed", "account", {
+            "attempted_email": "jordan@acmecorp.com",
+            "failure_reason": "invalid_password",
+            "attempt_number": 4,
+        })
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST https://getimmutable.dev/api/v1/events \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "actor_id": "unknown",
+        "actor_name": "Unknown",
+        "actor_type": "anonymous",
+        "action": "auth.login_failed",
+        "resource": "account",
+        "resource_id": "jordan@acmecorp.com",
+        "metadata": {
+          "attempted_email": "jordan@acmecorp.com",
+          "failure_reason": "invalid_password",
+          "attempt_number": 4
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## Configuring Alert Rules
+
+### New Country Alert
+
+Triggers when an actor logs in from a country they haven't been seen in before:
+
+```json
+{
+  "name": "Login from New Country",
+  "rule_type": "new_country",
+  "conditions": {
+    "action_pattern": "auth.login"
+  },
+  "channels": ["email", "webhook"]
+}
+```
+
+When Jordan — who normally logs in from the US — suddenly logs in from Romania, Immutable sends an alert immediately.
+
+### Off-Hours Alert
+
+Triggers when logins occur outside of normal business hours:
+
+```json
+{
+  "name": "Off-Hours Login",
+  "rule_type": "off_hours",
+  "conditions": {
+    "action_pattern": "auth.login",
+    "timezone": "America/New_York",
+    "start_hour": 22,
+    "end_hour": 6
+  },
+  "channels": ["email", "webhook"]
+}
+```
+
+A login at 3:17 AM Eastern triggers this alert, sending a notification to your security team.
+
+### Brute Force Detection with Repeated Action
+
+Triggers when the same action occurs too many times in a short window:
+
+```json
+{
+  "name": "Brute Force Detection",
+  "rule_type": "repeated_action",
+  "conditions": {
+    "action_pattern": "auth.login_failed",
+    "threshold": 5,
+    "window_minutes": 10
+  },
+  "channels": ["email", "webhook"]
+}
+```
+
+<Tip>
+  Combine multiple alert rules for layered security. A new country login on its own might be a traveling employee. But a new country login at 3 AM with no MFA? That deserves immediate investigation.
+</Tip>
+
+## Webhook Alert Payload
+
+When an alert fires, Immutable sends a webhook to your configured endpoint. The payload includes the triggering event and alert context:
+
+```json
+{
+  "alert_id": "alt_8f3a2c1d",
+  "rule_name": "Login from New Country",
+  "rule_type": "new_country",
+  "triggered_at": "2026-03-27T03:17:42.000000Z",
+  "event": {
+    "id": "evt_4b5e6f7a-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
+    "actor_id": "user_5a3c8f",
+    "actor_name": "Jordan Mitchell",
+    "action": "auth.login",
+    "ip_address": "91.203.144.12",
+    "ip_country": "RO",
+    "ip_city": "Bucharest",
+    "occurred_at": "2026-03-27T03:17:41.482910Z"
+  },
+  "context": {
+    "previous_countries": ["US"],
+    "new_country": "RO"
+  }
+}
+```
+
+The webhook includes an HMAC signature in the `X-Immutable-Signature` header for verification:
+
+```
+X-Immutable-Signature: sha256=a1b2c3d4e5f6...
+```
+
+<Note>
+  Always verify the HMAC signature before processing webhook payloads. This prevents attackers from spoofing alert notifications.
+</Note>
+
+## Querying Alerts via API
+
+Retrieve recent alerts to build a security dashboard or feed into your incident management system:
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    const alerts = await client.getAlerts({
+      rule_type: "new_country",
+      limit: 10,
+    });
+
+    alerts.data.forEach((alert) => {
+      console.log(
+        `${alert.triggered_at} | ${alert.rule_name} | ` +
+        `${alert.event.actor_name} from ${alert.event.ip_country}`
+      );
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    alerts = client.get_alerts(rule_type="new_country", limit=10)
+
+    for alert in alerts["data"]:
+        print(
+            f"{alert['triggered_at']} | {alert['rule_name']} | "
+            f"{alert['event']['actor_name']} from {alert['event']['ip_country']}"
+        )
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    curl "https://getimmutable.dev/api/v1/alerts?rule_type=new_country&limit=10" \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0"
+    ```
+  </Tab>
+</Tabs>
+
+## Full Security Monitoring Workflow
+
+Here is the complete flow from login to investigation:
+
+1. **Track all logins** — both successful and failed, with session IDs
+2. **Alert rules fire** — new country, off-hours, and brute force detections run automatically
+3. **Webhook delivers alert** — your security team gets a Slack/PagerDuty notification
+4. **Investigate via API** — query the actor's recent events to understand the full context
+5. **Take action** — lock the account, require MFA re-enrollment, or confirm it was legitimate
+
+<Tabs>
+  <Tab title="JavaScript">
+    ```javascript
+    // Step 4: Investigate the flagged actor's recent activity
+    const recentActivity = await client.getEvents({
+      actor_id: "user_5a3c8f",
+      limit: 20,
+    });
+
+    // Check for other suspicious patterns
+    const suspiciousEvents = recentActivity.data.filter(
+      (e) => e.ip_country !== "US" || e.action === "auth.login_failed"
+    );
+
+    console.log(`Found ${suspiciousEvents.length} suspicious events for user_5a3c8f`);
+    suspiciousEvents.forEach((e) => {
+      console.log(`  ${e.occurred_at} | ${e.action} | ${e.ip_country} (${e.ip_city})`);
+    });
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    # Step 4: Investigate the flagged actor's recent activity
+    recent_activity = client.get_events(actor_id="user_5a3c8f", limit=20)
+
+    suspicious_events = [
+        e for e in recent_activity["data"]
+        if e["ip_country"] != "US" or e["action"] == "auth.login_failed"
+    ]
+
+    print(f"Found {len(suspicious_events)} suspicious events for user_5a3c8f")
+    for e in suspicious_events:
+        print(f"  {e['occurred_at']} | {e['action']} | {e['ip_country']} ({e['ip_city']})")
+    ```
+  </Tab>
+  <Tab title="cURL">
+    ```bash
+    # Get recent activity for the flagged user
+    curl "https://getimmutable.dev/api/v1/events?actor_id=user_5a3c8f&limit=20" \
+      -H "Authorization: Bearer imk_sk_a1b2c3d4e5f6g7h8i9j0"
+    ```
+  </Tab>
+</Tabs>
+
+## What's Next
+
+<CardGroup cols={2}>
+  <Card title="Alert Rules" icon="bell" href="/platform/alert-rules">
+    Full reference for all alert rule types and configuration.
+  </Card>
+  <Card title="Geolocation" icon="globe" href="/guides/geolocation">
+    How IP geolocation enrichment works.
+  </Card>
+  <Card title="Webhook Signatures" icon="key" href="/security/webhook-signatures">
+    Verify the authenticity of alert webhook payloads.
+  </Card>
+  <Card title="Activity Intelligence" icon="brain" href="/guides/activity-intelligence">
+    Learn about the full alert rules engine and delivery system.
+  </Card>
+</CardGroup>
