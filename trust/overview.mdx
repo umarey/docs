@@ -1,0 +1,91 @@
+---
+title: Trust Architecture
+description: "You shouldn't have to trust us. Here's why you don't."
+icon: shield-check
+---
+
+## The Problem
+
+Every audit log vendor asks you to trust them. Trust that they won't modify your data. Trust that their employees can't tamper with records. Trust that a breach won't silently corrupt your audit trail.
+
+We built Immutable so you don't have to.
+
+## Four Layers of Trust
+
+Immutable's trust architecture is defense-in-depth. Each layer independently detects tampering. No single point of failure. No single party to trust.
+
+```
+Layer 4  ┌─────────────────────────────────────────────┐
+         │        Public Verification                   │
+         │  Anyone can verify — no API key, no trust    │
+         └──────────────────┬──────────────────────────┘
+Layer 3  ┌──────────────────┴──────────────────────────┐
+         │        Append-Only Database                  │
+         │  PostgreSQL trigger blocks UPDATE/DELETE      │
+         └──────────────────┬──────────────────────────┘
+Layer 2  ┌──────────────────┴──────────────────────────┐
+         │        Blockchain Anchoring                  │
+         │  Merkle roots published to Base (Ethereum L2)│
+         └──────────────────┬──────────────────────────┘
+Layer 1  ┌──────────────────┴──────────────────────────┐
+         │        Cryptographic Hash Chain              │
+         │  Every event linked to previous via SHA-256  │
+         └─────────────────────────────────────────────┘
+```
+
+### Layer 1: Cryptographic Hash Chain
+
+Every event is hashed using SHA-256 across all 22 fields, including the hash of the previous event. This creates a tamper-evident chain — modify any field on any event, and every subsequent hash breaks. The chain is per-workspace and uses PostgreSQL advisory locks to guarantee ordering under concurrent writes.
+
+[Deep dive into the hash chain](/trust/hash-chain)
+
+### Layer 2: Blockchain Anchoring
+
+Once per day, Immutable computes a Merkle root over all events in the period and publishes it to the Base blockchain (an Ethereum L2). The on-chain record is permanent and immutable — even if we rewrote our entire database, the Merkle roots on-chain would not match. Anchors are themselves chained, so deleting an anchor is also detectable.
+
+[Deep dive into blockchain anchoring](/trust/blockchain-anchoring)
+
+### Layer 3: Append-Only Database
+
+A PostgreSQL trigger (`enforce_append_only_events`) blocks all `UPDATE` and `DELETE` operations on the events table at the database engine level — not at the application level. This fires for every database connection, including the application's own. There is no application-level bypass.
+
+[Deep dive into the append-only database](/trust/append-only)
+
+### Layer 4: Public Verification
+
+Two API endpoints require no authentication at all. Anyone — your customers, their auditors, regulators — can independently verify that an anchor's Merkle root matches what is recorded on-chain. Zero trust in Immutable required.
+
+[Deep dive into public verification](/trust/public-verification)
+
+## What This Means
+
+| Threat | Layer that detects it |
+| ------ | -------------------- |
+| Immutable modifies an event field | Layer 1 (hash mismatch) |
+| Immutable deletes an event | Layer 1 (chain break) + Layer 3 (trigger blocks it) |
+| Immutable inserts a backdated event | Layer 1 (chain break) + Layer 2 (Merkle root mismatch) |
+| Immutable rewrites the database | Layer 2 (on-chain Merkle roots don't match) |
+| Immutable deletes blockchain anchors | Layer 2 (anchor chain break) + on-chain data is permanent |
+| A rogue DBA runs UPDATE | Layer 3 (trigger blocks it) + Layer 1 (hash mismatch if bypassed) |
+| Immutable lies about verification results | Layer 4 (verify on-chain yourself, no API needed) |
+
+Each layer independently detects tampering. Together, they make it mathematically and practically impossible to alter your audit trail without detection.
+
+## Verify It Yourself
+
+Don't take our word for it. Every claim on this page is verifiable:
+
+<Steps>
+  <Step title="Verify your hash chain">
+    Call `GET /api/v1/verify` to validate every event hash and chain link.
+    [Verify events](/trust/verify-events)
+  </Step>
+  <Step title="Verify blockchain anchors">
+    Call `GET /api/v1/anchors/{id}/verify` to check Merkle roots match.
+    [Verify anchors](/trust/verify-anchors)
+  </Step>
+  <Step title="Verify on-chain directly">
+    Read the smart contract on Basescan. No Immutable API needed.
+    [Verify on-chain](/trust/verify-on-chain)
+  </Step>
+</Steps>

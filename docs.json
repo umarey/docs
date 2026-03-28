@@ -65,6 +65,29 @@
         ]
       },
       {
+        "tab": "Trust Architecture",
+        "groups": [
+          {
+            "group": "How It Works",
+            "pages": [
+              "trust/overview",
+              "trust/hash-chain",
+              "trust/blockchain-anchoring",
+              "trust/append-only",
+              "trust/public-verification"
+            ]
+          },
+          {
+            "group": "Verify It Yourself",
+            "pages": [
+              "trust/verify-events",
+              "trust/verify-anchors",
+              "trust/verify-on-chain"
+            ]
+          }
+        ]
+      },
+      {
         "tab": "Use Cases",
         "groups": [
           {
@@ -113,6 +136,14 @@
               "api-reference/create-export",
               "api-reference/get-export",
               "api-reference/download-export"
+            ]
+          },
+          {
+            "group": "Anchors",
+            "pages": [
+              "api-reference/list-anchors",
+              "api-reference/get-anchor",
+              "api-reference/verify-anchor"
             ]
           },
           {

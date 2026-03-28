@@ -1,0 +1,154 @@
+---
+title: Blockchain Anchoring
+description: Merkle roots published to the Base blockchain for permanent, independent verification.
+icon: cube
+---
+
+## Why Blockchain
+
+The hash chain (Layer 1) detects tampering — but only if you trust that the hashes themselves haven't been rewritten. Blockchain anchoring removes that trust requirement. By publishing Merkle roots to a public blockchain, we create a permanent, independently verifiable record that exists outside our control.
+
+Even if we rewrote our entire database and recomputed every hash, the on-chain Merkle roots would not match.
+
+## How It Works
+
+<Steps>
+  <Step title="Collect events">
+    Immutable groups all events created within an anchoring period (daily by default) for each workspace.
+  </Step>
+  <Step title="Build Merkle tree">
+    A binary Merkle tree is constructed from the event hashes. If the number of leaves is odd, the last leaf is duplicated. The tree is reduced to a single 64-character hex root.
+  </Step>
+  <Step title="Submit to Base">
+    The Merkle root is submitted to the `ImmutableAnchor` smart contract on the Base blockchain (Chain ID 8453) — an Ethereum L2.
+  </Step>
+  <Step title="Confirm on-chain">
+    Once the transaction is confirmed, the anchor record is updated with the transaction hash, block number, and explorer URL.
+  </Step>
+</Steps>
+
+```
+Events in period          Merkle Tree              On-chain
+┌────┐ ┌────┐ ┌────┐
+│ h1 │ │ h2 │ │ h3 │     h12 = SHA256(h1+h2)     ┌──────────────┐
+└────┘ └────┘ └────┘     h33 = SHA256(h3+h3)     │ ImmutableAnchor │
+                          root = SHA256(h12+h33)   │ anchor(root)    │
+                                                   │ tx: 0xabc...   │
+                                                   └──────────────┘
+```
+
+<Note>
+  The Merkle tree is a standard binary tree. When the number of leaves is odd, the last leaf is duplicated to complete the pair. This produces a single 64-character hex root that represents all events in the period.
+</Note>
+
+## The Smart Contract
+
+The `ImmutableAnchor.sol` contract is deliberately simple — its only job is to permanently record Merkle roots:
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+contract ImmutableAnchor {
+    event Anchored(bytes32 indexed merkleRoot, uint256 timestamp);
+
+    function anchor(bytes32 merkleRoot) external {
+        emit Anchored(merkleRoot, block.timestamp);
+    }
+}
+```
+
+The `Anchored` event log is permanent and publicly readable. Anyone can query it from Basescan or directly from a Base node.
+
+## Why Base
+
+Base is an Ethereum L2 (Layer 2) rollup. It provides:
+
+| Property | Benefit |
+| -------- | ------- |
+| Low transaction cost | Anchoring costs fractions of a cent per workspace per day |
+| Fast confirmations | Transactions confirm in seconds, not minutes |
+| Ethereum security | Inherits Ethereum's security guarantees via rollup proofs |
+| Public and permissionless | Anyone can read the chain — no account or API key needed |
+| Chain ID 8453 | Standard EVM chain, supported by all major tools |
+
+## Anchor Lifecycle
+
+Each anchor transitions through three statuses:
+
+```
+pending  →  submitted  →  confirmed
+```
+
+| Status | Meaning |
+| ------ | ------- |
+| `pending` | Merkle root computed, transaction not yet sent |
+| `submitted` | Transaction sent to Base, awaiting confirmation |
+| `confirmed` | Transaction confirmed on-chain, `tx_hash` and `block_number` recorded |
+
+## Anchor Chaining
+
+Anchors are themselves chained. Each anchor stores a `previous_anchor_hash` computed from the previous anchor:
+
+```
+previous_anchor_hash = SHA256(previous_merkle_root + previous_tx_hash)
+```
+
+This means deleting or reordering anchors is also detectable. The anchor chain provides a second layer of sequential integrity on top of the event hash chain.
+
+```
+Anchor 1                Anchor 2                Anchor 3
+┌────────────────┐      ┌────────────────┐      ┌────────────────┐
+│ merkle_root: r1│      │ merkle_root: r2│      │ merkle_root: r3│
+│ tx_hash: 0xa.. │      │ tx_hash: 0xb.. │      │ tx_hash: 0xc.. │
+│ prev: null     │─────>│ prev: sha(r1+a)│─────>│ prev: sha(r2+b)│
+└────────────────┘      └────────────────┘      └────────────────┘
+```
+
+## Basescan Verification
+
+Every confirmed anchor includes an `explorer_url` pointing directly to the transaction on Basescan:
+
+```
+https://basescan.org/tx/{tx_hash}
+```
+
+On Basescan, you can:
+1. Confirm the transaction exists and is confirmed
+2. Read the `Anchored` event log
+3. Extract the `merkleRoot` bytes32 value
+4. Compare it to what Immutable reports via the API
+
+This is fully independent verification — no Immutable API involved.
+
+## API Access
+
+<CodeGroup>
+
+```bash cURL -- List anchors
+curl https://getimmutable.dev/api/v1/anchors \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+```bash cURL -- Verify an anchor
+curl https://getimmutable.dev/api/v1/anchors/anc_abc123/verify \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+```typescript JavaScript
+const anchors = await client.getAnchors();
+const verified = await client.verifyAnchor("anc_abc123");
+```
+
+```python Python
+anchors = client.get_anchors()
+verified = client.verify_anchor("anc_abc123")
+```
+
+</CodeGroup>
+
+See the full API reference: [List Anchors](/api-reference/list-anchors) | [Get Anchor](/api-reference/get-anchor) | [Verify Anchor](/api-reference/verify-anchor)
+
+<Warning>
+  Anchors in `pending` or `submitted` status cannot be verified on-chain yet. Only `confirmed` anchors have a `tx_hash` and `block_number`. The verify endpoint will return the current status for non-confirmed anchors.
+</Warning>

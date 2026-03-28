@@ -1,0 +1,171 @@
+---
+title: Cryptographic Hash Chain
+description: How every event is cryptographically linked to the one before it.
+icon: link
+---
+
+## How It Works
+
+Every event in Immutable is part of a per-workspace SHA-256 hash chain. Each event's hash is computed from all of its fields plus the hash of the previous event. Change any field on any event, and every subsequent hash in the chain breaks.
+
+```
+Event 1              Event 2              Event 3
+┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+│ data fields │      │ data fields │      │ data fields │
+│ prev: null  │─────>│ prev: h1    │─────>│ prev: h2    │
+│ hash: h1    │      │ hash: h2    │      │ hash: h3    │
+└─────────────┘      └─────────────┘      └─────────────┘
+```
+
+The first event in a workspace has `previous_event_hash` set to `null`. Every subsequent event references the hash of its predecessor.
+
+## The 22 Hashed Fields
+
+Every field on the event is included in the hash computation. Nothing is excluded.
+
+| Group | Fields |
+| ----- | ------ |
+| Identity | `workspace_id` |
+| Actor | `actor_id`, `actor_name`, `actor_type` |
+| Action | `action`, `action_category` |
+| Resource | `resource_id`, `resource_name`, `resource` |
+| Context | `metadata`, `targets`, `occurred_at` |
+| Network | `ip_address`, `ip_country`, `ip_city`, `user_agent` |
+| Tracking | `tenant_id`, `session_id`, `idempotency_key`, `version` |
+| Chain | `previous_event_hash` |
+
+The hash payload is constructed by concatenating all 22 field values in a deterministic order, then computing `SHA-256` over the result.
+
+<Note>
+  **Deterministic ordering matters.** Metadata keys are recursively sorted and targets are sorted by `type` then `id` before hashing. This guarantees identical hashes regardless of JSON key order or array ordering in the database.
+</Note>
+
+## How Tampering Is Detected
+
+### Field modification (hash_mismatch)
+
+If any field on an event is modified — even a single character in the metadata — the recomputed hash will not match the stored hash.
+
+```
+Event 2 (original)           Event 2 (tampered)
+┌──────────────────┐         ┌──────────────────┐
+│ action: "created"│         │ action: "deleted" │  <-- modified
+│ hash: h2         │         │ hash: h2          │  <-- stale, doesn't match
+└──────────────────┘         └──────────────────┘
+
+Recomputed hash: h2'  !=  Stored hash: h2  →  hash_mismatch
+```
+
+### Event insertion or deletion (chain_break)
+
+If an event is inserted into or deleted from the chain, the `previous_event_hash` on the next event will not match the hash of what now precedes it.
+
+```
+Original:    E1 ──> E2 ──> E3
+Deleted E2:  E1 ──> E3          E3.prev = h2, but predecessor is now E1 (hash h1)  →  chain_break
+```
+
+## Chain Ordering
+
+Events are chained by `created_at` (server-side timestamp with microsecond precision), not `occurred_at` (client-provided time). This guarantees a linear, consistent chain even when clients submit events with out-of-order timestamps.
+
+<Note>
+  When events are ingested via the [batch endpoint](/api-reference/batch-events), each event's `created_at` is offset by 1 microsecond to preserve insertion order. Without this, batch events would share the same timestamp, and UUID ordering would not match insertion order — causing false chain breaks during verification.
+</Note>
+
+## Concurrency Safety
+
+Multiple API requests can ingest events into the same workspace concurrently. To prevent conflicting hash chains, Immutable uses PostgreSQL advisory locks:
+
+```sql
+SELECT pg_advisory_xact_lock(crc32(workspace_id));
+```
+
+This transaction-scoped lock ensures only one event is hashed at a time per workspace. The lock is held only for the duration of the hash computation and event insertion, then released automatically when the transaction commits.
+
+## Manually Recomputing a Hash
+
+You can independently verify any event hash. The hash payload is the concatenation of all 22 fields in this order:
+
+```python
+import hashlib
+import json
+
+def compute_event_hash(event):
+    """Recompute the SHA-256 hash for an Immutable event."""
+
+    # Sort metadata keys recursively
+    def sort_recursive(obj):
+        if isinstance(obj, dict):
+            return {k: sort_recursive(v) for k, v in sorted(obj.items())}
+        if isinstance(obj, list):
+            return [sort_recursive(i) for i in obj]
+        return obj
+
+    # Sort targets by type, then id
+    targets = sorted(event.get("targets", []), key=lambda t: (t["type"], t["id"]))
+
+    payload = "|".join([
+        str(event.get("workspace_id", "")),
+        str(event.get("actor_id", "")),
+        str(event.get("actor_name", "")),
+        str(event.get("actor_type", "")),
+        str(event.get("action", "")),
+        str(event.get("action_category", "")),
+        str(event.get("resource_id", "")),
+        str(event.get("resource_name", "")),
+        str(event.get("resource", "")),
+        json.dumps(sort_recursive(event.get("metadata", {})), separators=(",", ":")),
+        json.dumps([{"type": t["type"], "id": t["id"]} for t in targets], separators=(",", ":")),
+        str(event.get("occurred_at", "")),
+        str(event.get("ip_address", "")),
+        str(event.get("ip_country", "")),
+        str(event.get("ip_city", "")),
+        str(event.get("user_agent", "")),
+        str(event.get("tenant_id", "")),
+        str(event.get("session_id", "")),
+        str(event.get("idempotency_key", "")),
+        str(event.get("version", "")),
+        str(event.get("previous_event_hash", "")),
+    ])
+
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+```
+
+<Tip>
+  The pipe character (`|`) is used as a field delimiter. Null fields are represented as empty strings. The resulting hash is a 64-character lowercase hex string.
+</Tip>
+
+## Verifying the Chain via API
+
+Use the [verify endpoint](/api-reference/verify-chain) to validate the chain programmatically:
+
+<CodeGroup>
+
+```bash cURL
+curl https://getimmutable.dev/api/v1/verify \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+```typescript JavaScript
+const result = await client.verify();
+
+if (!result.data.valid) {
+  console.error("Chain broken!", result.data.breaks);
+}
+```
+
+```python Python
+result = client.verify()
+
+if not result["data"]["valid"]:
+    print("Chain broken!", result["data"]["breaks"])
+```
+
+</CodeGroup>
+
+See [Verify Your Events](/trust/verify-events) for a complete verification walkthrough.
+
+<Warning>
+  Legacy events ingested before hash chain activation have nullable hash fields. The verify endpoint skips these events and does not report them as breaks.
+</Warning>

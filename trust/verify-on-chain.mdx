@@ -1,0 +1,208 @@
+---
+title: Verify On-Chain
+description: Verify directly on the blockchain without using Immutable's API at all.
+icon: ethereum
+---
+
+## Ultimate Verification
+
+This is the highest level of verification available. You read the smart contract directly from the Base blockchain, bypassing Immutable's API entirely. If you trust Ethereum, you can verify your audit trail with zero trust in Immutable.
+
+## What You Need
+
+1. An anchor's `tx_hash` (from the API, a compliance report, or a public lookup)
+2. The `merkle_root` you want to verify
+3. Access to a Base RPC endpoint (public endpoints available) or Basescan
+
+## Method 1: Basescan (No Code)
+
+<Steps>
+  <Step title="Open the transaction on Basescan">
+    Navigate to the explorer URL:
+
+    ```
+    https://basescan.org/tx/0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b
+    ```
+  </Step>
+  <Step title="Find the event log">
+    Click the **Logs** tab in the transaction details. Look for the `Anchored` event:
+
+    ```
+    Event: Anchored(bytes32 indexed merkleRoot, uint256 timestamp)
+    Topic 1 (merkleRoot): 0x9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+    Data (timestamp): 1711584000
+    ```
+  </Step>
+  <Step title="Compare the Merkle root">
+    The `merkleRoot` in Topic 1 (without the `0x` prefix) should exactly match the `merkle_root` from the anchor record:
+
+    ```
+    On-chain:  9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+    API:       9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+    Match: YES — audit trail for this period is verified
+    ```
+  </Step>
+</Steps>
+
+## Method 2: ethers.js (Programmatic)
+
+Read the contract's event logs directly from a Base node:
+
+```typescript
+import { ethers } from "ethers";
+
+// Base mainnet RPC (Chain ID 8453)
+const provider = new ethers.JsonRpcProvider("https://mainnet.base.org");
+
+// ImmutableAnchor contract ABI (only the event we need)
+const abi = [
+  "event Anchored(bytes32 indexed merkleRoot, uint256 timestamp)",
+];
+
+const contractAddress = "0xYOUR_CONTRACT_ADDRESS"; // ImmutableAnchor deployment address
+
+async function verifyOnChain(txHash: string, expectedMerkleRoot: string) {
+  // Get the transaction receipt
+  const receipt = await provider.getTransactionReceipt(txHash);
+
+  if (!receipt) {
+    throw new Error(`Transaction ${txHash} not found on Base`);
+  }
+
+  // Parse the Anchored event from the logs
+  const iface = new ethers.Interface(abi);
+
+  for (const log of receipt.logs) {
+    try {
+      const parsed = iface.parseLog({
+        topics: log.topics as string[],
+        data: log.data,
+      });
+
+      if (parsed && parsed.name === "Anchored") {
+        const onChainRoot = parsed.args.merkleRoot.slice(2); // remove 0x prefix
+
+        console.log("On-chain Merkle root:", onChainRoot);
+        console.log("Expected Merkle root:", expectedMerkleRoot);
+        console.log("Match:", onChainRoot === expectedMerkleRoot);
+
+        return onChainRoot === expectedMerkleRoot;
+      }
+    } catch {
+      // Not our event, skip
+    }
+  }
+
+  throw new Error("Anchored event not found in transaction logs");
+}
+
+// Usage
+const txHash = "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b";
+const merkleRoot = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+
+const verified = await verifyOnChain(txHash, merkleRoot);
+// On-chain Merkle root: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+// Expected Merkle root: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+// Match: true
+```
+
+## Method 3: Python (web3.py)
+
+```python
+from web3 import Web3
+
+# Base mainnet RPC (Chain ID 8453)
+w3 = Web3(Web3.HTTPProvider("https://mainnet.base.org"))
+
+def verify_on_chain(tx_hash: str, expected_merkle_root: str) -> bool:
+    receipt = w3.eth.get_transaction_receipt(tx_hash)
+
+    # Anchored event topic0 = keccak256("Anchored(bytes32,uint256)")
+    event_signature = w3.keccak(text="Anchored(bytes32,uint256)")
+
+    for log in receipt["logs"]:
+        if log["topics"][0] == event_signature:
+            # merkleRoot is topic1 (indexed parameter)
+            on_chain_root = log["topics"][1].hex()
+
+            print(f"On-chain:  {on_chain_root}")
+            print(f"Expected:  {expected_merkle_root}")
+            print(f"Match:     {on_chain_root == expected_merkle_root}")
+
+            return on_chain_root == expected_merkle_root
+
+    raise ValueError("Anchored event not found in transaction logs")
+
+
+# Usage
+tx_hash = "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b"
+merkle_root = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+
+verify_on_chain(tx_hash, merkle_root)
+```
+
+## Method 4: cURL + Cast (Foundry)
+
+If you have [Foundry](https://getfoundry.sh/) installed, you can use `cast` to read transaction logs from the command line:
+
+```bash
+# Get the transaction receipt and extract logs
+cast receipt 0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b \
+  --rpc-url https://mainnet.base.org
+
+# Decode the Anchored event
+cast decode-event "Anchored(bytes32,uint256)" \
+  --topic1 0x9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+```
+
+## Full End-to-End Verification
+
+Combine the API and on-chain verification for complete trust-minimized verification:
+
+```typescript
+import { ImmutableClient } from "getimmutable";
+import { ethers } from "ethers";
+
+async function fullVerification(anchorId: string) {
+  // Step 1: Get anchor details from Immutable API
+  const client = new ImmutableClient({
+    apiKey: process.env.IMMUTABLE_API_KEY!,
+    baseUrl: "https://getimmutable.dev",
+  });
+
+  const anchor = await client.getAnchor(anchorId);
+  const { merkle_root, tx_hash } = anchor.data;
+
+  // Step 2: Verify Merkle root matches events (API)
+  const apiResult = await client.verifyAnchor(anchorId);
+  console.log("API verification:", apiResult.data.valid ? "PASS" : "FAIL");
+
+  // Step 3: Verify on-chain (zero trust in Immutable)
+  const provider = new ethers.JsonRpcProvider("https://mainnet.base.org");
+  const receipt = await provider.getTransactionReceipt(tx_hash);
+  const abi = ["event Anchored(bytes32 indexed merkleRoot, uint256 timestamp)"];
+  const iface = new ethers.Interface(abi);
+
+  for (const log of receipt!.logs) {
+    try {
+      const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+      if (parsed?.name === "Anchored") {
+        const onChainRoot = parsed.args.merkleRoot.slice(2);
+        const onChainMatch = onChainRoot === merkle_root;
+        console.log("On-chain verification:", onChainMatch ? "PASS" : "FAIL");
+        return apiResult.data.valid && onChainMatch;
+      }
+    } catch {}
+  }
+
+  return false;
+}
+```
+
+<Note>
+  This verification flow requires only a public Base RPC endpoint. No Immutable account, API key, or special access is needed for the on-chain portion. The only thing you need from Immutable is the `tx_hash` and `merkle_root` — which can come from a compliance report, not just the API.
+</Note>
+
+<Warning>
+  Public RPC endpoints may have rate limits. For production verification scripts, consider using a dedicated RPC provider like Alchemy or Infura with Base support.
+</Warning>

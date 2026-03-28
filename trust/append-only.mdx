@@ -1,0 +1,111 @@
+---
+title: Append-Only Database
+description: A PostgreSQL trigger that blocks modification of audit events at the database engine level.
+icon: database
+---
+
+## Why Application-Level Isn't Enough
+
+Most audit log systems prevent modification through application code — controllers that don't expose update endpoints, models without update methods. This is necessary but insufficient. A compromised application, a rogue employee with database access, or a SQL injection vulnerability can bypass all of it.
+
+Immutable enforces append-only at the database engine level.
+
+## The Trigger
+
+A PostgreSQL trigger named `enforce_append_only_events` fires on every `UPDATE` and `DELETE` operation against the events table. It raises an exception, aborting the transaction.
+
+```sql
+CREATE OR REPLACE FUNCTION enforce_append_only()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF current_setting('immutable.allow_archive', true) = 'true' THEN
+        RETURN OLD;
+    END IF;
+
+    RAISE EXCEPTION 'Events table is append-only. UPDATE and DELETE operations are not permitted.';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER enforce_append_only_events
+    BEFORE UPDATE OR DELETE ON events
+    FOR EACH ROW
+    EXECUTE FUNCTION enforce_append_only();
+```
+
+This trigger:
+- Fires **before** the operation, preventing it from completing
+- Applies to **every row** individually
+- Runs for **all database connections** using the application connection, including the application itself
+- Cannot be bypassed by application code, ORMs, or raw SQL through the application connection
+
+## What Happens When Someone Tries
+
+```sql
+-- Any of these will fail:
+UPDATE events SET action = 'modified' WHERE id = '...';
+-- ERROR: Events table is append-only. UPDATE and DELETE operations are not permitted.
+
+DELETE FROM events WHERE id = '...';
+-- ERROR: Events table is append-only. UPDATE and DELETE operations are not permitted.
+```
+
+The operation is aborted. The data is unchanged. The transaction is rolled back.
+
+## The Archival Exception
+
+Immutable supports [data retention policies](/platform/retention) — events older than your plan's retention period are archived to compressed storage and then removed from the primary database. This is the only legitimate reason to delete events.
+
+The archival process uses a session-local setting to bypass the trigger:
+
+```sql
+SET LOCAL immutable.allow_archive = 'true';
+-- DELETE now proceeds for archival only
+DELETE FROM events WHERE created_at < retention_cutoff;
+```
+
+`SET LOCAL` scopes the setting to the current transaction only. It cannot leak to other connections or persist after the transaction commits.
+
+<Note>
+  The archival process runs as an automated background job. Before any events are deleted, they are exported as gzipped JSON-L files to object storage (Cloudflare R2) with integrity verification. The deletion only proceeds after the archive upload is confirmed.
+</Note>
+
+## "What About Your DBA?"
+
+A common question: if a database administrator has superuser access, can they disable the trigger?
+
+The trigger fires for all users using the application's database connection. Direct database access with elevated privileges — the kind required to modify triggers — is separately audited through infrastructure access logs, and any such access would be detectable through the hash chain (Layer 1) and blockchain anchoring (Layer 2).
+
+The point is defense-in-depth:
+
+| Scenario | What stops it |
+| -------- | ------------- |
+| Application code tries to UPDATE | Trigger blocks it |
+| SQL injection tries to DELETE | Trigger blocks it |
+| DBA modifies data via application connection | Trigger blocks it |
+| DBA disables trigger and modifies data | Hash chain detects tampering, blockchain anchors don't match |
+| DBA rewrites data AND recomputes all hashes | On-chain Merkle roots don't match, public verification fails |
+
+No single layer is sufficient. All four layers together are.
+
+## Verifying the Trigger Exists
+
+You can confirm the trigger is active by querying PostgreSQL's system catalog:
+
+```sql
+SELECT trigger_name, event_manipulation, action_timing
+FROM information_schema.triggers
+WHERE event_object_table = 'events';
+```
+
+Expected output:
+
+```
+ trigger_name                | event_manipulation | action_timing
+-----------------------------+--------------------+--------------
+ enforce_append_only_events  | UPDATE             | BEFORE
+ enforce_append_only_events  | DELETE             | BEFORE
+```
+
+<Warning>
+  The trigger is created via a database migration and is part of the application's schema. It is not optional and cannot be removed through normal deployment processes.
+</Warning>

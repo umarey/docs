@@ -1,0 +1,112 @@
+---
+title: Get Anchor
+description: Retrieve a single blockchain anchor with full detail.
+---
+
+## GET /api/v1/anchors/{id}
+
+Retrieve a single anchor by ID. The detail response includes additional fields not present in the list response: `first_event_hash` and `last_event_hash`, which identify the hash chain boundaries for this anchor's period.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The anchor identifier (e.g., `anc_abc123`).
+</ParamField>
+
+### Response
+
+```json
+{
+  "data": {
+    "id": "anc_abc123",
+    "merkle_root": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "previous_anchor_hash": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+    "first_event_hash": "a3f2c8d1e4b567890abcdef1234567890abcdef1234567890abcdef12345678",
+    "last_event_hash": "7b9e1d3f5a2c67890abcdef1234567890abcdef1234567890abcdef12345678",
+    "events_count": 1247,
+    "period_start": "2026-03-27T00:00:00Z",
+    "period_end": "2026-03-27T23:59:59Z",
+    "chain": "base",
+    "status": "confirmed",
+    "tx_hash": "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b",
+    "block_number": 28451923,
+    "explorer_url": "https://basescan.org/tx/0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b",
+    "created_at": "2026-03-28T00:15:32Z"
+  }
+}
+```
+
+### Response Fields
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | string | Unique anchor identifier |
+| `merkle_root` | string | 64-character hex SHA-256 Merkle root of events in this period |
+| `previous_anchor_hash` | string \| null | SHA-256 hash of the previous anchor's `merkle_root` + `tx_hash`. Null for the first anchor |
+| `first_event_hash` | string | Hash of the first event in this anchor's period |
+| `last_event_hash` | string | Hash of the last event in this anchor's period |
+| `events_count` | integer | Number of events included in the Merkle tree |
+| `period_start` | string | ISO 8601 start of the anchoring period |
+| `period_end` | string | ISO 8601 end of the anchoring period |
+| `chain` | string | Blockchain network (`base`) |
+| `status` | string | `pending`, `submitted`, or `confirmed` |
+| `tx_hash` | string \| null | Blockchain transaction hash |
+| `block_number` | integer \| null | Block number of the confirmed transaction |
+| `explorer_url` | string \| null | Direct link to the transaction on Basescan |
+| `created_at` | string | ISO 8601 timestamp of anchor creation |
+
+### Examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://getimmutable.dev/api/v1/anchors/anc_abc123 \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+```typescript JavaScript
+import { ImmutableClient } from "getimmutable";
+
+const client = new ImmutableClient({
+  apiKey: "imk_your_api_key_here",
+  baseUrl: "https://getimmutable.dev",
+});
+
+const anchor = await client.getAnchor("anc_abc123");
+
+console.log(`Period: ${anchor.data.period_start} — ${anchor.data.period_end}`);
+console.log(`Events: ${anchor.data.events_count}`);
+console.log(`First event hash: ${anchor.data.first_event_hash}`);
+console.log(`Last event hash: ${anchor.data.last_event_hash}`);
+console.log(`Explorer: ${anchor.data.explorer_url}`);
+```
+
+```python Python
+from getimmutable import ImmutableClient
+
+client = ImmutableClient(
+    api_key="imk_your_api_key_here",
+    base_url="https://getimmutable.dev",
+)
+
+anchor = client.get_anchor("anc_abc123")
+
+print(f"Period: {anchor['data']['period_start']} — {anchor['data']['period_end']}")
+print(f"Events: {anchor['data']['events_count']}")
+print(f"Explorer: {anchor['data']['explorer_url']}")
+```
+
+```php Laravel
+use GetImmutable\AuditLog;
+
+$anchor = AuditLog::client()->getAnchor('anc_abc123');
+
+echo "Events: {$anchor['data']['events_count']}\n";
+echo "Explorer: {$anchor['data']['explorer_url']}\n";
+```
+
+</CodeGroup>
+
+<Tip>
+  The `first_event_hash` and `last_event_hash` fields let you identify exactly which segment of the hash chain is covered by this anchor. Use these to cross-reference with the [verify chain endpoint](/api-reference/verify-chain) for a specific time range.
+</Tip>

@@ -1,0 +1,158 @@
+---
+title: Verify Anchor
+description: Verify an anchor's Merkle root integrity and anchor chain validity.
+---
+
+## GET /api/v1/anchors/{id}/verify
+
+Recomputes the Merkle root from the underlying events and checks that it matches the stored anchor. Also validates the anchor chain by verifying `previous_anchor_hash` references the preceding anchor correctly.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The anchor identifier (e.g., `anc_abc123`).
+</ParamField>
+
+### Response
+
+```json
+{
+  "data": {
+    "anchor_id": "anc_abc123",
+    "merkle_root": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "valid": true,
+    "chain_valid": true,
+    "expected": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "actual": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "events_count": 1247,
+    "tx_hash": "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b",
+    "explorer_url": "https://basescan.org/tx/0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b"
+  }
+}
+```
+
+### Response Fields
+
+<ResponseField name="anchor_id" type="string">
+  The anchor identifier.
+</ResponseField>
+
+<ResponseField name="merkle_root" type="string">
+  The 64-character hex Merkle root stored in this anchor record.
+</ResponseField>
+
+<ResponseField name="valid" type="boolean">
+  `true` if the Merkle root recomputed from the underlying events matches the stored `merkle_root`. `false` if the events have been modified, inserted, or deleted since the anchor was created.
+</ResponseField>
+
+<ResponseField name="chain_valid" type="boolean">
+  `true` if the `previous_anchor_hash` correctly equals `SHA-256(previous_merkle_root + previous_tx_hash)`. `false` if the anchor chain has been tampered with. Always `true` for the first anchor in a workspace.
+</ResponseField>
+
+<ResponseField name="expected" type="string">
+  The Merkle root recomputed from the current event data. If `valid` is `true`, this matches `actual`.
+</ResponseField>
+
+<ResponseField name="actual" type="string">
+  The Merkle root stored in the anchor record at creation time. If `valid` is `true`, this matches `expected`.
+</ResponseField>
+
+<ResponseField name="events_count" type="integer">
+  The number of events included in this anchor's Merkle tree.
+</ResponseField>
+
+<ResponseField name="tx_hash" type="string">
+  The blockchain transaction hash. Null if the anchor is not yet confirmed on-chain.
+</ResponseField>
+
+<ResponseField name="explorer_url" type="string">
+  Direct link to the transaction on Basescan. Null if not yet confirmed.
+</ResponseField>
+
+### Examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://getimmutable.dev/api/v1/anchors/anc_abc123/verify \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+```typescript JavaScript
+import { ImmutableClient } from "getimmutable";
+
+const client = new ImmutableClient({
+  apiKey: "imk_your_api_key_here",
+  baseUrl: "https://getimmutable.dev",
+});
+
+const result = await client.verifyAnchor("anc_abc123");
+
+if (result.data.valid && result.data.chain_valid) {
+  console.log("Anchor verified successfully.");
+  console.log(`${result.data.events_count} events, Merkle root intact.`);
+  console.log(`Explorer: ${result.data.explorer_url}`);
+} else {
+  if (!result.data.valid) {
+    console.error("Merkle root mismatch!");
+    console.error(`Expected: ${result.data.expected}`);
+    console.error(`Actual:   ${result.data.actual}`);
+  }
+  if (!result.data.chain_valid) {
+    console.error("Anchor chain integrity violation!");
+  }
+}
+```
+
+```python Python
+from getimmutable import ImmutableClient
+
+client = ImmutableClient(
+    api_key="imk_your_api_key_here",
+    base_url="https://getimmutable.dev",
+)
+
+result = client.verify_anchor("anc_abc123")
+
+if result["data"]["valid"] and result["data"]["chain_valid"]:
+    print(f"Anchor verified. {result['data']['events_count']} events.")
+else:
+    if not result["data"]["valid"]:
+        print(f"Merkle root mismatch: expected {result['data']['expected']}, got {result['data']['actual']}")
+    if not result["data"]["chain_valid"]:
+        print("Anchor chain integrity violation")
+```
+
+```php Laravel
+use GetImmutable\AuditLog;
+
+$result = AuditLog::client()->verifyAnchor('anc_abc123');
+
+if ($result['data']['valid'] && $result['data']['chain_valid']) {
+    Log::info('Anchor verified', [
+        'events' => $result['data']['events_count'],
+        'explorer' => $result['data']['explorer_url'],
+    ]);
+} else {
+    Log::critical('Anchor verification failed', $result['data']);
+}
+```
+
+</CodeGroup>
+
+### Interpreting Results
+
+| `valid` | `chain_valid` | Meaning |
+| ------- | ------------- | ------- |
+| `true` | `true` | Everything is intact. Merkle root matches events, anchor chain is correct. |
+| `false` | `true` | Events were modified after this anchor was created. The anchor chain is fine, but the underlying data changed. |
+| `true` | `false` | Events are intact, but a preceding anchor was modified or deleted. |
+| `false` | `false` | Both the events and the anchor chain have been tampered with. |
+
+<Warning>
+  Anchors with `status: "pending"` or `status: "submitted"` will have null `tx_hash` and `explorer_url`. The `valid` and `chain_valid` checks still run against the stored Merkle root and anchor chain, but on-chain cross-verification is not possible until the anchor reaches `confirmed` status.
+</Warning>
+
+<Tip>
+  After verifying via the API, cross-check the `tx_hash` on Basescan for fully independent verification. See [Verify On-Chain](/trust/verify-on-chain) for a step-by-step guide.
+</Tip>

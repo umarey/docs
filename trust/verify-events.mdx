@@ -1,0 +1,196 @@
+---
+title: Verify Your Events
+description: Validate the integrity of your workspace's SHA-256 hash chain.
+icon: magnifying-glass
+---
+
+## Overview
+
+The `GET /api/v1/verify` endpoint recomputes the SHA-256 hash for every event in your workspace and checks that each event's `previous_event_hash` matches the hash of the preceding event. If any field has been modified or any event has been inserted or deleted, the verification will report the exact break.
+
+## Basic Verification
+
+<CodeGroup>
+
+```bash cURL
+curl https://getimmutable.dev/api/v1/verify \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+```typescript JavaScript
+import { ImmutableClient } from "getimmutable";
+
+const client = new ImmutableClient({
+  apiKey: "imk_your_api_key_here",
+  baseUrl: "https://getimmutable.dev",
+});
+
+const result = await client.verify();
+
+if (result.data.valid) {
+  console.log(`Chain intact. ${result.data.events_checked} events verified.`);
+} else {
+  console.error(`Chain broken! ${result.data.breaks.length} break(s) detected.`);
+}
+```
+
+```python Python
+from getimmutable import ImmutableClient
+
+client = ImmutableClient(
+    api_key="imk_your_api_key_here",
+    base_url="https://getimmutable.dev",
+)
+
+result = client.verify()
+
+if result["data"]["valid"]:
+    print(f"Chain intact. {result['data']['events_checked']} events verified.")
+else:
+    print(f"Chain broken! {len(result['data']['breaks'])} break(s) detected.")
+```
+
+```php Laravel
+use GetImmutable\AuditLog;
+
+$result = AuditLog::verify();
+
+if ($result['data']['valid']) {
+    Log::info('Audit chain intact', ['events' => $result['data']['events_checked']]);
+} else {
+    Log::critical('Audit chain integrity violation', ['breaks' => $result['data']['breaks']]);
+}
+```
+
+</CodeGroup>
+
+## Response (Valid Chain)
+
+```json
+{
+  "data": {
+    "valid": true,
+    "events_checked": 4821,
+    "breaks": []
+  }
+}
+```
+
+## Response (Tampered Chain)
+
+```json
+{
+  "data": {
+    "valid": false,
+    "events_checked": 4821,
+    "breaks": [
+      {
+        "event_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+        "type": "hash_mismatch",
+        "expected_hash": "a3f2c8d1e4b567890abcdef1234567890abcdef1234567890abcdef12345678",
+        "actual_hash": "ff00ab12cd34ef5678901234567890abcdef1234567890abcdef1234567890ab"
+      },
+      {
+        "event_id": "c4d5e6f7-8a9b-0c1d-2e3f-4a5b6c7d8e9f",
+        "type": "chain_break",
+        "expected_hash": "7b9e1d3f5a2c67890abcdef1234567890abcdef1234567890abcdef12345678",
+        "actual_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    ]
+  }
+}
+```
+
+## Break Types
+
+### `hash_mismatch`
+
+The stored hash does not match the recomputed hash. This means the event data was modified after ingestion. The `expected_hash` is what the hash should be based on the current field values, and `actual_hash` is what was stored at ingestion time.
+
+### `chain_break`
+
+The `previous_event_hash` on an event does not match the hash of the preceding event. This means an event was inserted into or deleted from the chain. The `expected_hash` is the hash of the preceding event, and `actual_hash` is the `previous_event_hash` stored on the broken event.
+
+## Date Range Verification
+
+Verify a specific time window instead of the entire chain:
+
+<CodeGroup>
+
+```bash cURL
+curl "https://getimmutable.dev/api/v1/verify?from=2026-03-01T00:00:00Z&to=2026-03-31T23:59:59Z" \
+  -H "Authorization: Bearer imk_your_api_key_here"
+```
+
+```typescript JavaScript
+const result = await client.verify(
+  "2026-03-01T00:00:00Z",
+  "2026-03-31T23:59:59Z"
+);
+```
+
+```python Python
+result = client.verify(
+    from_date="2026-03-01T00:00:00Z",
+    to_date="2026-03-31T23:59:59Z",
+)
+```
+
+</CodeGroup>
+
+## Query Parameters
+
+| Parameter | Type | Default | Description |
+| --------- | ---- | ------- | ----------- |
+| `from` | string | - | ISO 8601 timestamp. Verify events from this time onward |
+| `to` | string | - | ISO 8601 timestamp. Verify events up to this time |
+| `limit` | integer | 10000 | Maximum number of events to check |
+
+## Automated Monitoring
+
+Run the verify endpoint on a schedule and alert your team if the chain is broken. This is the recommended approach for production workspaces.
+
+```typescript
+// cron-verify.ts — run daily via cron or your scheduler
+import { ImmutableClient } from "getimmutable";
+
+async function verifyAuditLogIntegrity() {
+  const client = new ImmutableClient({
+    apiKey: process.env.IMMUTABLE_API_KEY!,
+    baseUrl: "https://getimmutable.dev",
+  });
+
+  // Verify the last 24 hours
+  const now = new Date();
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const result = await client.verify(
+    yesterday.toISOString(),
+    now.toISOString()
+  );
+
+  if (!result.data.valid) {
+    await fetch(process.env.SLACK_WEBHOOK_URL!, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: `:rotating_light: Audit log chain integrity violation detected!\n${result.data.breaks.length} break(s) found. Check immediately.`,
+      }),
+    });
+  }
+
+  console.log(
+    `[${now.toISOString()}] Verified ${result.data.events_checked} events. Valid: ${result.data.valid}`
+  );
+}
+
+verifyAuditLogIntegrity();
+```
+
+<Tip>
+  For maximum coverage, run verification on the last 24 hours daily, and verify the full chain weekly or monthly. The `limit` parameter can be increased for full-chain verification.
+</Tip>
+
+<Warning>
+  Legacy events ingested before hash chain activation have nullable hash fields. These events are skipped during verification and do not produce breaks.
+</Warning>

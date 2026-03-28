@@ -1,0 +1,146 @@
+---
+title: Public Verification
+description: Verify blockchain anchors without authentication — no API key, no trust required.
+icon: globe
+---
+
+## Zero-Trust Verification
+
+Immutable provides two public endpoints that require no authentication. Anyone — your customers, their auditors, regulators, or security researchers — can independently verify that your audit trail anchors are legitimate without trusting Immutable at all.
+
+No API key. No account. No trust.
+
+## Public Endpoints
+
+### Look Up an Anchor by Transaction Hash
+
+```
+GET /api/v1/public/anchors/lookup?tx_hash=0x...
+```
+
+Given a blockchain transaction hash, returns the corresponding anchor record. This allows someone who found a transaction on Basescan to look up what it represents.
+
+### Verify an Anchor
+
+```
+GET /api/v1/public/anchors/{id}/verify
+```
+
+Given an anchor ID, recomputes the Merkle root from the underlying events and checks that it matches the on-chain record.
+
+<Note>
+  These endpoints are rate-limited but do not require authentication. They are designed for independent, third-party verification.
+</Note>
+
+## Verification Walkthrough
+
+A customer, auditor, or regulator can verify your audit trail's integrity without any access to your Immutable workspace:
+
+<Steps>
+  <Step title="Get the transaction hash">
+    You provide them with a `tx_hash` from your anchor records (e.g., from a compliance report or dashboard export).
+  </Step>
+  <Step title="Look up the anchor">
+    They call the public lookup endpoint to retrieve the anchor details:
+
+    ```bash
+    curl "https://getimmutable.dev/api/v1/public/anchors/lookup?tx_hash=0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b"
+    ```
+
+    Response:
+    ```json
+    {
+      "data": {
+        "id": "anc_abc123",
+        "merkle_root": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "events_count": 1247,
+        "period_start": "2026-03-27T00:00:00Z",
+        "period_end": "2026-03-27T23:59:59Z",
+        "chain": "base",
+        "status": "confirmed",
+        "tx_hash": "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b",
+        "block_number": 28451923,
+        "explorer_url": "https://basescan.org/tx/0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b"
+      }
+    }
+    ```
+  </Step>
+  <Step title="Verify the Merkle root">
+    They call the public verify endpoint to confirm the Merkle root matches the underlying events:
+
+    ```bash
+    curl "https://getimmutable.dev/api/v1/public/anchors/anc_abc123/verify"
+    ```
+
+    Response:
+    ```json
+    {
+      "data": {
+        "anchor_id": "anc_abc123",
+        "merkle_root": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "valid": true,
+        "chain_valid": true,
+        "expected": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "actual": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "events_count": 1247,
+        "tx_hash": "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b",
+        "explorer_url": "https://basescan.org/tx/0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b"
+      }
+    }
+    ```
+  </Step>
+  <Step title="Cross-check on Basescan">
+    They open the `explorer_url` in a browser. On Basescan, they can:
+    - Confirm the transaction exists and is confirmed
+    - Read the `Anchored` event log in the transaction's logs tab
+    - Extract the `merkleRoot` bytes32 value
+    - Compare it to the `merkle_root` returned by the API
+
+    If the values match, the audit trail for that period is verified.
+  </Step>
+</Steps>
+
+## Error Responses
+
+### Anchor not found
+
+If the `tx_hash` does not correspond to any anchor:
+
+```bash
+curl "https://getimmutable.dev/api/v1/public/anchors/lookup?tx_hash=0xinvalid"
+```
+
+```json
+{
+  "error": "Not found",
+  "message": "No anchor found for the given transaction hash."
+}
+```
+
+Status: `404`
+
+### Anchor not yet confirmed
+
+If an anchor exists but has not yet been confirmed on-chain:
+
+```json
+{
+  "data": {
+    "anchor_id": "anc_xyz789",
+    "status": "submitted",
+    "message": "This anchor has been submitted to the blockchain but is not yet confirmed."
+  }
+}
+```
+
+## Full Verification Chain
+
+For maximum assurance, the verifier can combine all three approaches:
+
+1. **Public API** — Confirm the Merkle root matches the events (`GET /api/v1/public/anchors/{id}/verify`)
+2. **Basescan** — Confirm the Merkle root is recorded on-chain (`explorer_url`)
+3. **Direct on-chain read** — Read the smart contract directly, bypassing both Immutable and Basescan ([Verify On-Chain](/trust/verify-on-chain))
+
+<Tip>
+  For compliance reports, include the `tx_hash` and `explorer_url` for each anchoring period. This gives auditors a direct path to independent verification without needing to contact Immutable.
+</Tip>
