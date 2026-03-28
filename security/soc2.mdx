@@ -45,13 +45,21 @@ Immutable records administrative actions within the platform itself (API key cre
 
 ## Tamper Evidence
 
-Every event is linked in a SHA-256 [hash chain](/guides/hash-chain). To prove data integrity to an auditor:
+Immutable uses a four-layer trust architecture to guarantee data integrity:
 
-1. Run `GET /api/v1/verify` to validate the chain.
-2. The response shows `valid: true` with the number of events checked.
-3. Any tampering produces specific break reports with event IDs and hash details.
+1. **Hash chain** -- Every event is linked in a SHA-256 [hash chain](/guides/hash-chain). Any modification breaks the chain.
+2. **Blockchain anchoring** -- Daily Merkle roots are published to the [Base blockchain](/trust/blockchain-anchoring). Even if Immutable's database were compromised, on-chain records can't be altered.
+3. **Append-only database** -- A PostgreSQL trigger [blocks UPDATE and DELETE](/trust/append-only) on the events table at the database engine level.
+4. **Public verification** -- Anyone can [verify anchors without authentication](/trust/public-verification), including auditors and regulators.
 
-See [Hash Verification](/security/hash-verification) for automating this check.
+To prove data integrity to an auditor:
+
+1. Run `GET /api/v1/verify` to validate the hash chain.
+2. Run `GET /api/v1/anchors/{id}/verify` to verify the blockchain anchor.
+3. Cross-check the anchor's `tx_hash` on [basescan.org](https://basescan.org) for independent on-chain proof.
+4. Any tampering produces specific break reports with event IDs and hash details.
+
+See [Trust Architecture](/trust/overview) for the full design.
 
 ## Recommended Plan
 

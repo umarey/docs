@@ -6,7 +6,7 @@ icon: shield-check
 
 # What is Immutable?
 
-Immutable is an API for SaaS companies to record, query, and display user actions with built-in tamper evidence. Every event is cryptographically chained using SHA-256 so you can prove your audit trail has never been altered.
+Immutable is an API for SaaS companies to record, query, and display user actions with built-in tamper evidence. Every event is cryptographically chained, blockchain-anchored, and stored in an append-only database. You don't have to trust us — [verify it yourself](/trust/overview).
 
 ## Who is Immutable for?
 
@@ -22,8 +22,11 @@ Immutable is an API for SaaS companies to record, query, and display user action
 ## Platform Features
 
 <CardGroup cols={3}>
-  <Card title="Tamper-Evident Chain" icon="link" href="/guides/hash-chain">
+  <Card title="Tamper-Evident Chain" icon="link" href="/trust/hash-chain">
     Every event is SHA-256 hashed and chained to the previous event. Detect any modification or deletion instantly.
+  </Card>
+  <Card title="Blockchain Anchoring" icon="cube" href="/trust/blockchain-anchoring">
+    Daily Merkle roots published to Base blockchain. Verify on-chain — no trust in us required.
   </Card>
   <Card title="Async Ingestion" icon="bolt" href="/api-reference/ingest-event">
     Events return `202 Accepted` with a pre-generated UUID. Processing happens asynchronously via background queues.

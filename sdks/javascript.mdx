@@ -225,6 +225,26 @@ const status = await client.getExport(exp.data.id);
 console.log(status.data.status); // "pending" | "processing" | "completed" | "failed"
 ```
 
+## Anchors
+
+```typescript
+// List blockchain anchors
+const anchors = await client.getAnchors(10);
+for (const anchor of anchors.data) {
+  console.log(`${anchor.merkle_root} — ${anchor.status} — ${anchor.explorer_url}`);
+}
+
+// Get anchor details
+const anchor = await client.getAnchor("anchor-uuid");
+console.log(anchor.data.first_event_hash);
+console.log(anchor.data.last_event_hash);
+
+// Verify anchor integrity
+const result = await client.verifyAnchor("anchor-uuid");
+console.log(result.data.valid);       // Merkle root matches events
+console.log(result.data.chain_valid); // Anchor chain is intact
+```
+
 ## Error Handling
 
 The SDK throws `ImmutableError` for API failures:
